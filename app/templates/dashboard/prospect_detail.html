@@ -42,8 +42,19 @@
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
   <div class="flex flex-wrap gap-6">
     <div>
-      <div class="text-xl font-bold text-gray-900">
-        {{ prospect.first_name or '' }} {{ prospect.last_name or '' }}
+      <div class="flex items-center gap-3">
+        <div class="text-xl font-bold text-gray-900">
+          {{ prospect.first_name or '' }} {{ prospect.last_name or '' }}
+        </div>
+        {% if hubspot_status == 'deal' %}
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
+          Deal in HubSpot
+        </span>
+        {% elif hubspot_status == 'contact' %}
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+          In HubSpot
+        </span>
+        {% endif %}
       </div>
       <div class="text-sm text-gray-500">{{ prospect.email }}</div>
       {% if prospect.title %}<div class="text-sm text-gray-600 mt-0.5">{{ prospect.title }}</div>{% endif %}

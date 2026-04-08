@@ -109,7 +109,20 @@ def dashboard_prospects(
             (SELECT ee.event_type FROM email_events ee
              WHERE ee.prospect_id = p.id ORDER BY ee.occurred_at DESC LIMIT 1)          AS last_event_type,
             (SELECT ee.occurred_at FROM email_events ee
-             WHERE ee.prospect_id = p.id ORDER BY ee.occurred_at DESC LIMIT 1)          AS last_event_at
+             WHERE ee.prospect_id = p.id ORDER BY ee.occurred_at DESC LIMIT 1)          AS last_event_at,
+            -- HubSpot status: deal > contact > pending > none
+            CASE
+                WHEN EXISTS (SELECT 1 FROM email_events ee
+                             WHERE ee.prospect_id = p.id
+                               AND ee.event_type = 'reply'
+                               AND ee.hubspot_synced_at IS NOT NULL)      THEN 'deal'
+                WHEN EXISTS (SELECT 1 FROM email_events ee
+                             WHERE ee.prospect_id = p.id
+                               AND ee.hubspot_synced_at IS NOT NULL)      THEN 'contact'
+                WHEN EXISTS (SELECT 1 FROM email_events ee
+                             WHERE ee.prospect_id = p.id)                 THEN 'pending'
+                ELSE NULL
+            END                                                                          AS hubspot_status
         FROM prospects p
         WHERE 1=1
     """
@@ -407,6 +420,15 @@ def dashboard_prospect_detail(
         for evt in all_events:
             events_by_enrollment.setdefault(str(evt.enrollment_id), []).append(evt)
 
+    # HubSpot status for this prospect
+    has_deal = db.execute(text(
+        "SELECT 1 FROM email_events WHERE prospect_id = :pid AND event_type = 'reply' AND hubspot_synced_at IS NOT NULL LIMIT 1"
+    ), {"pid": str(prospect.id)}).fetchone()
+    has_contact = db.execute(text(
+        "SELECT 1 FROM email_events WHERE prospect_id = :pid AND hubspot_synced_at IS NOT NULL LIMIT 1"
+    ), {"pid": str(prospect.id)}).fetchone()
+    hubspot_status = "deal" if has_deal else ("contact" if has_contact else None)
+
     return templates.TemplateResponse(
         "dashboard/prospect_detail.html",
         {
@@ -414,6 +436,7 @@ def dashboard_prospect_detail(
             "prospect": prospect,
             "enrollments": enrollments,
             "events_by_enrollment": events_by_enrollment,
+            "hubspot_status": hubspot_status,
             "active_page": "prospects",
         },
     )

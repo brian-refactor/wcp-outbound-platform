@@ -27,6 +27,7 @@ class OverviewStats(BaseModel):
     total_bounced: int
     total_opted_out: int
     total_completed: int
+    hubspot_deals: int
     hubspot_pending: int
 
 
@@ -101,6 +102,14 @@ def overview_stats(db: Session = Depends(get_db)):
         .filter(SequenceEnrollment.status == "completed")
         .scalar() or 0
     )
+    hubspot_deals = (
+        db.query(func.count(func.distinct(EmailEvent.prospect_id)))
+        .filter(
+            EmailEvent.event_type == "reply",
+            EmailEvent.hubspot_synced_at.is_not(None),
+        )
+        .scalar() or 0
+    )
     hubspot_pending = (
         db.query(func.count(EmailEvent.id))
         .filter(
@@ -118,6 +127,7 @@ def overview_stats(db: Session = Depends(get_db)):
         total_bounced=total_bounced,
         total_opted_out=total_opted_out,
         total_completed=total_completed,
+        hubspot_deals=hubspot_deals,
         hubspot_pending=hubspot_pending,
     )
 
