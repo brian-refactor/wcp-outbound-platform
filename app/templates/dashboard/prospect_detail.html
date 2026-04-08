@@ -28,6 +28,16 @@
   "complete":    "bg-teal-100 text-teal-700",
 } %}
 
+{# ── Created success banner ── #}
+{% if request.query_params.get('created') %}
+<div class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+  </svg>
+  <span class="text-sm font-medium text-green-800">Prospect added successfully.</span>
+</div>
+{% endif %}
+
 {# ── Prospect header card ── #}
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
   <div class="flex flex-wrap gap-6">

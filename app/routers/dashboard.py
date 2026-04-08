@@ -3,20 +3,25 @@ Dashboard UI — server-rendered HTML pages using Jinja2 + HTMX.
 All pages are read-only; no API key required (internal ops tool).
 """
 
+import csv
+import io
 import logging
+import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.integrations import smartlead
 from app.models.email_event import EmailEvent
 from app.models.prospect import Prospect
 from app.models.sequence_enrollment import SequenceEnrollment
-from app.integrations import smartlead
 from app.routers.stats import (
     overview_stats,
     recent_events,
@@ -156,6 +161,193 @@ def dashboard_prospects(
             "total_pages": total_pages,
             "active_page": "prospects",
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Add single prospect
+# ---------------------------------------------------------------------------
+
+VALID_SEQUENCE_TYPES = ["RE_DEAL", "RE_FUND", "PE_DEAL", "PE_FUND"]
+
+@router.get("/prospects/new", response_class=HTMLResponse)
+def prospect_new_form(request: Request):
+    return templates.TemplateResponse(
+        "dashboard/prospect_new.html",
+        {"request": request, "active_page": "prospects",
+         "sequence_types": VALID_SEQUENCE_TYPES, "error": None, "form": {}},
+    )
+
+
+@router.post("/prospects/new", response_class=HTMLResponse)
+def prospect_new_submit(
+    request: Request,
+    db: Session = Depends(get_db),
+    first_name: Optional[str] = Form(None),
+    last_name: Optional[str] = Form(None),
+    email: str = Form(...),
+    company: Optional[str] = Form(None),
+    title: Optional[str] = Form(None),
+    phone: Optional[str] = Form(None),
+    linkedin_url: Optional[str] = Form(None),
+    asset_class_preference: Optional[str] = Form(None),
+    geography: Optional[str] = Form(None),
+    source: Optional[str] = Form("manual"),
+    campaign_id: Optional[str] = Form(None),
+    sequence_type: Optional[str] = Form(None),
+    high_intent_campaign_id: Optional[str] = Form(None),
+):
+    form_data = {
+        "first_name": first_name, "last_name": last_name, "email": email,
+        "company": company, "title": title, "phone": phone,
+        "linkedin_url": linkedin_url, "asset_class_preference": asset_class_preference,
+        "geography": geography, "source": source or "manual",
+        "campaign_id": campaign_id, "sequence_type": sequence_type,
+        "high_intent_campaign_id": high_intent_campaign_id,
+    }
+
+    def render_error(msg):
+        return templates.TemplateResponse(
+            "dashboard/prospect_new.html",
+            {"request": request, "active_page": "prospects",
+             "sequence_types": VALID_SEQUENCE_TYPES, "error": msg, "form": form_data},
+            status_code=422,
+        )
+
+    email = (email or "").strip().lower()
+    if not email:
+        return render_error("Email is required.")
+
+    asset_class = (asset_class_preference or "").strip() or None
+    if asset_class and asset_class not in ("PE", "RE", "both"):
+        asset_class = None
+
+    prospect = Prospect(
+        first_name=(first_name or "").strip() or None,
+        last_name=(last_name or "").strip() or None,
+        email=email,
+        company=(company or "").strip() or None,
+        title=(title or "").strip() or None,
+        phone=(phone or "").strip() or None,
+        linkedin_url=(linkedin_url or "").strip() or None,
+        asset_class_preference=asset_class,
+        geography=(geography or "").strip() or None,
+        source=(source or "manual").strip(),
+    )
+    db.add(prospect)
+    try:
+        db.commit()
+        db.refresh(prospect)
+    except IntegrityError:
+        db.rollback()
+        return render_error(f"A prospect with email {email} already exists.")
+
+    # Optional enrollment
+    if campaign_id and campaign_id.strip() and sequence_type:
+        if sequence_type not in VALID_SEQUENCE_TYPES:
+            return render_error(f"Invalid sequence type: {sequence_type}")
+        try:
+            smartlead.enroll_prospect(
+                campaign_id=int(campaign_id),
+                email=prospect.email,
+                first_name=prospect.first_name,
+                last_name=prospect.last_name,
+            )
+            enrollment = SequenceEnrollment(
+                prospect_id=prospect.id,
+                smartlead_campaign_id=str(campaign_id),
+                high_intent_campaign_id=str(high_intent_campaign_id) if high_intent_campaign_id else None,
+                sequence_type=sequence_type,
+            )
+            db.add(enrollment)
+            db.commit()
+        except Exception as e:
+            logger.error("Enrollment failed for %s: %s", email, e)
+            return render_error(f"Prospect created but enrollment failed: {e}")
+
+    return RedirectResponse(
+        url=f"/dashboard/prospects/{prospect.id}?created=1",
+        status_code=303,
+    )
+
+
+# ---------------------------------------------------------------------------
+# CSV import
+# ---------------------------------------------------------------------------
+
+@router.get("/prospects/import", response_class=HTMLResponse)
+def prospect_import_form(request: Request):
+    return templates.TemplateResponse(
+        "dashboard/prospect_import.html",
+        {"request": request, "active_page": "prospects", "result": None},
+    )
+
+
+@router.post("/prospects/import", response_class=HTMLResponse)
+async def prospect_import_submit(
+    request: Request,
+    db: Session = Depends(get_db),
+    file: UploadFile = File(...),
+):
+    error = None
+    result = None
+
+    if not file.filename or not file.filename.endswith(".csv"):
+        error = "Please upload a .csv file."
+    else:
+        max_size = 10 * 1024 * 1024
+        content = await file.read(max_size + 1)
+        if len(content) > max_size:
+            error = "File too large — 10 MB maximum."
+        else:
+            text_content = content.decode("utf-8-sig")
+            reader = csv.DictReader(io.StringIO(text_content))
+            imported, skipped, errors = 0, 0, []
+
+            for row_num, row in enumerate(reader, start=2):
+                email = (row.get("email") or "").strip().lower()
+                if not email:
+                    errors.append(f"Row {row_num}: missing email — skipped")
+                    skipped += 1
+                    continue
+
+                asset_class = (row.get("asset_class_preference") or "").strip() or None
+                if asset_class and asset_class not in ("PE", "RE", "both"):
+                    errors.append(f"Row {row_num}: invalid asset_class '{asset_class}' — set to null")
+                    asset_class = None
+
+                values = dict(
+                    id=uuid.uuid4(),
+                    email=email,
+                    first_name=(row.get("first_name") or "").strip() or None,
+                    last_name=(row.get("last_name") or "").strip() or None,
+                    company=(row.get("company") or "").strip() or None,
+                    title=(row.get("title") or "").strip() or None,
+                    linkedin_url=(row.get("linkedin_url") or "").strip() or None,
+                    phone=(row.get("phone") or "").strip() or None,
+                    asset_class_preference=asset_class,
+                    geography=(row.get("geography") or "").strip() or None,
+                    source=(row.get("source") or "").strip() or "apollo",
+                )
+                stmt = (
+                    pg_insert(Prospect)
+                    .values(**values)
+                    .on_conflict_do_nothing(index_elements=["email"])
+                    .returning(Prospect.id)
+                )
+                row_result = db.execute(stmt)
+                if row_result.fetchone() is None:
+                    errors.append(f"Row {row_num}: {email} already exists — skipped")
+                    skipped += 1
+                else:
+                    imported += 1
+
+            db.commit()
+            result = {"imported": imported, "skipped": skipped, "errors": errors}
+
+    return templates.TemplateResponse(
+        "dashboard/prospect_import.html",
+        {"request": request, "active_page": "prospects", "result": result, "error": error},
     )
 
 

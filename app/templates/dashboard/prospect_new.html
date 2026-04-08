@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Add Prospect{% endblock %}
+{% block heading %}
+  <div class="flex items-center gap-2">
+    <a href="/dashboard/prospects" class="text-gray-400 hover:text-gray-700 transition-colors">Prospects</a>
+    <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+    </svg>
+    <span>Add Prospect</span>
+  </div>
+{% endblock %}
+
+{% block content %}
+
+{% if error %}
+<div class="rounded-xl border border-red-200 bg-red-50 px-5 py-4 mb-6 flex items-start gap-3">
+  <svg class="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+  <div class="text-sm font-medium text-red-800">{{ error }}</div>
+</div>
+{% endif %}
+
+<form method="post" action="/dashboard/prospects/new" class="max-w-2xl space-y-6">
+
+  {# ── Contact Info ── #}
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <h2 class="text-sm font-semibold text-gray-700 mb-4">Contact Information</h2>
+    <div class="grid grid-cols-2 gap-4">
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">First Name</label>
+        <input type="text" name="first_name" value="{{ form.get('first_name') or '' }}"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Last Name</label>
+        <input type="text" name="last_name" value="{{ form.get('last_name') or '' }}"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+
+      <div class="col-span-2">
+        <label class="block text-xs font-medium text-gray-600 mb-1">
+          Email <span class="text-red-500">*</span>
+        </label>
+        <input type="email" name="email" value="{{ form.get('email') or '' }}" required
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Company</label>
+        <input type="text" name="company" value="{{ form.get('company') or '' }}"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Title</label>
+        <input type="text" name="title" value="{{ form.get('title') or '' }}"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+        <input type="text" name="phone" value="{{ form.get('phone') or '' }}"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">LinkedIn URL</label>
+        <input type="url" name="linkedin_url" value="{{ form.get('linkedin_url') or '' }}"
+               placeholder="https://linkedin.com/in/..."
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+
+    </div>
+  </div>
+
+  {# ── Targeting ── #}
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <h2 class="text-sm font-semibold text-gray-700 mb-4">Targeting</h2>
+    <div class="grid grid-cols-2 gap-4">
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Asset Class Preference</label>
+        <select name="asset_class_preference"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">— Not specified —</option>
+          <option value="PE" {% if form.get('asset_class_preference') == 'PE' %}selected{% endif %}>PE — Private Equity</option>
+          <option value="RE" {% if form.get('asset_class_preference') == 'RE' %}selected{% endif %}>RE — Real Estate</option>
+          <option value="both" {% if form.get('asset_class_preference') == 'both' %}selected{% endif %}>Both</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Geography</label>
+        <input type="text" name="geography" value="{{ form.get('geography') or '' }}"
+               placeholder="e.g. Southeast US"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Source</label>
+        <select name="source"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="manual" {% if not form.get('source') or form.get('source') == 'manual' %}selected{% endif %}>Manual</option>
+          <option value="apollo" {% if form.get('source') == 'apollo' %}selected{% endif %}>Apollo</option>
+          <option value="referral" {% if form.get('source') == 'referral' %}selected{% endif %}>Referral</option>
+          <option value="linkedin" {% if form.get('source') == 'linkedin' %}selected{% endif %}>LinkedIn</option>
+        </select>
+      </div>
+
+    </div>
+  </div>
+
+  {# ── Enrollment (optional) ── #}
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <div class="flex items-center gap-3 mb-1">
+      <h2 class="text-sm font-semibold text-gray-700">Enroll in Sequence</h2>
+      <span class="text-xs text-gray-400 font-normal">optional — leave Campaign ID blank to skip</span>
+    </div>
+    <p class="text-xs text-gray-400 mb-4">
+      If a Campaign ID is provided the prospect will be immediately added to that Smartlead campaign.
+    </p>
+    <div class="grid grid-cols-2 gap-4">
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Smartlead Campaign ID</label>
+        <input type="number" name="campaign_id" value="{{ form.get('campaign_id') or '' }}"
+               placeholder="e.g. 123456"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Sequence Type</label>
+        <select name="sequence_type"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">— Select type —</option>
+          {% for st in sequence_types %}
+          <option value="{{ st }}" {% if form.get('sequence_type') == st %}selected{% endif %}>{{ st }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-span-2">
+        <label class="block text-xs font-medium text-gray-600 mb-1">High Intent Campaign ID</label>
+        <input type="number" name="high_intent_campaign_id"
+               value="{{ form.get('high_intent_campaign_id') or '' }}"
+               placeholder="Smartlead campaign to switch to on 3+ opens/clicks — leave blank if not set up yet"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+
+    </div>
+  </div>
+
+  {# ── Actions ── #}
+  <div class="flex items-center gap-3">
+    <button type="submit"
+            class="rounded-lg bg-indigo-600 text-white px-6 py-2.5 text-sm font-medium hover:bg-indigo-700 transition-colors">
+      Add Prospect
+    </button>
+    <a href="/dashboard/prospects"
+       class="rounded-lg border border-gray-300 text-gray-600 px-5 py-2.5 text-sm hover:bg-gray-50 transition-colors">
+      Cancel
+    </a>
+  </div>
+
+</form>
+{% endblock %}

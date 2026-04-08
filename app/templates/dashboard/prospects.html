@@ -4,6 +4,27 @@
 
 {% block content %}
 
+{# ── Action buttons ── #}
+<div class="flex items-center justify-between mb-5">
+  <div class="flex gap-2">
+    <a href="/dashboard/prospects/new"
+       class="rounded-lg bg-indigo-600 text-white px-4 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      Add Prospect
+    </a>
+    <a href="/dashboard/prospects/import"
+       class="rounded-lg border border-gray-300 text-gray-700 px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+      </svg>
+      Import CSV
+    </a>
+  </div>
+</div>
+
 {# ── Search + Filter bar ── #}
 <form method="get" class="flex flex-wrap gap-3 mb-6">
   <input
