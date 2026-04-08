@@ -22,11 +22,18 @@ router = APIRouter(prefix="/stats", tags=["stats"])
 class OverviewStats(BaseModel):
     total_prospects: int
     active_enrollments: int
+    total_sent: int
     total_replied: int
     total_bounced: int
     total_opted_out: int
     total_completed: int
     hubspot_pending: int
+
+
+class DomainSendRow(BaseModel):
+    domain: str
+    total_sent: int
+    last_sent_at: Optional[datetime]
 
 
 class SequenceRow(BaseModel):
@@ -69,6 +76,11 @@ def overview_stats(db: Session = Depends(get_db)):
         .filter(SequenceEnrollment.status == "active")
         .scalar() or 0
     )
+    total_sent = (
+        db.query(func.count(EmailEvent.id))
+        .filter(EmailEvent.event_type == "sent")
+        .scalar() or 0
+    )
     total_replied = (
         db.query(func.count(func.distinct(EmailEvent.prospect_id)))
         .filter(EmailEvent.event_type == "reply")
@@ -101,6 +113,7 @@ def overview_stats(db: Session = Depends(get_db)):
     return OverviewStats(
         total_prospects=total_prospects,
         active_enrollments=active_enrollments,
+        total_sent=total_sent,
         total_replied=total_replied,
         total_bounced=total_bounced,
         total_opted_out=total_opted_out,
@@ -165,6 +178,29 @@ def sync_stats(db: Session = Depends(get_db)):
         last_synced_at=row["last_synced_at"],
         oldest_pending_at=row["oldest_pending_at"],
     )
+
+
+@router.get("/sends/by-domain", response_model=list[DomainSendRow])
+def sends_by_domain(db: Session = Depends(get_db)):
+    rows = db.execute(text("""
+        SELECT
+            COALESCE(domain_used, 'unknown')  AS domain,
+            COUNT(*)                           AS total_sent,
+            MAX(occurred_at)                   AS last_sent_at
+        FROM email_events
+        WHERE event_type = 'sent'
+        GROUP BY domain_used
+        ORDER BY total_sent DESC
+    """)).mappings().all()
+
+    return [
+        DomainSendRow(
+            domain=row["domain"],
+            total_sent=row["total_sent"],
+            last_sent_at=row["last_sent_at"],
+        )
+        for row in rows
+    ]
 
 
 @router.get("/events/recent", response_model=list[RecentEvent])

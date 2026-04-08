@@ -16,9 +16,11 @@ from app.database import get_db
 from app.models.email_event import EmailEvent
 from app.models.prospect import Prospect
 from app.models.sequence_enrollment import SequenceEnrollment
+from app.integrations import smartlead
 from app.routers.stats import (
     overview_stats,
     recent_events,
+    sends_by_domain,
     sequence_stats,
     sync_stats,
 )
@@ -230,6 +232,40 @@ def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
             "sequences": seq,
             "top_companies": top_companies,
             "active_page": "sequences",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Mailboxes
+# ---------------------------------------------------------------------------
+
+@router.get("/mailboxes", response_class=HTMLResponse)
+def dashboard_mailboxes(request: Request, db: Session = Depends(get_db)):
+    # Live mailbox list from Smartlead API
+    mailboxes = []
+    smartlead_error = None
+    try:
+        mailboxes = smartlead.list_email_accounts()
+    except Exception as e:
+        smartlead_error = str(e)
+        logger.warning("Could not fetch Smartlead email accounts: %s", e)
+
+    # Local sends breakdown by sending domain
+    domain_sends = sends_by_domain(db=db)
+
+    # Build a quick lookup: domain -> send count from our DB
+    domain_send_map = {row.domain: row.total_sent for row in domain_sends}
+
+    return templates.TemplateResponse(
+        "dashboard/mailboxes.html",
+        {
+            "request": request,
+            "mailboxes": mailboxes,
+            "smartlead_error": smartlead_error,
+            "domain_sends": domain_sends,
+            "domain_send_map": domain_send_map,
+            "active_page": "mailboxes",
         },
     )
 
