@@ -8,6 +8,8 @@ The built-in PersistentScheduler stores beat state in celerybeat-schedule
 (local file). Fine for a single combined worker+beat process on Railway.
 """
 
+import ssl
+
 from celery import Celery
 from celery.schedules import crontab
 
@@ -26,6 +28,10 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    broker_connection_retry_on_startup=True,
+    # Required for rediss:// (TLS) connections — Upstash and Railway Redis both use TLS
+    redis_backend_use_ssl={"ssl_cert_reqs": ssl.CERT_NONE},
+    broker_use_ssl={"ssl_cert_reqs": ssl.CERT_NONE},
     # Beat schedule — runs inside the combined worker+beat process
     beat_schedule={
         "scan-high-intent": {
