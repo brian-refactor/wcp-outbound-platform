@@ -1,10 +1,12 @@
 import csv
 import io
 import logging
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -90,7 +92,8 @@ async def import_csv(
             )
             asset_class = None
 
-        prospect = Prospect(
+        values = dict(
+            id=uuid.uuid4(),
             email=email,
             first_name=(row.get("first_name") or "").strip() or None,
             last_name=(row.get("last_name") or "").strip() or None,
@@ -102,15 +105,20 @@ async def import_csv(
             geography=(row.get("geography") or "").strip() or None,
             source=(row.get("source") or "").strip() or "apollo",
         )
-        db.add(prospect)
-        try:
-            # Use a savepoint so only this row rolls back on duplicate — not the whole batch
-            with db.begin_nested():
-                db.flush()
-            imported += 1
-        except IntegrityError:
+        # ON CONFLICT DO NOTHING is atomic — no savepoint / transaction state issues
+        # Use RETURNING id to detect dupes (rowcount is unreliable with psycopg3)
+        stmt = (
+            pg_insert(Prospect)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=["email"])
+            .returning(Prospect.id)
+        )
+        result = db.execute(stmt)
+        if result.fetchone() is None:
             errors.append(f"Row {row_num}: {email} already exists — skipped")
             skipped += 1
+        else:
+            imported += 1
 
     db.commit()
     return ImportResult(imported=imported, skipped=skipped, errors=errors)
