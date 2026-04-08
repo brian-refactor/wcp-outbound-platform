@@ -1,5 +1,6 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import Boolean, DateTime, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
@@ -14,21 +15,21 @@ class Prospect(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    first_name: Mapped[str | None] = mapped_column(String(255))
-    last_name: Mapped[str | None] = mapped_column(String(255))
+    first_name: Mapped[Optional[str]] = mapped_column(String(255))
+    last_name: Mapped[Optional[str]] = mapped_column(String(255))
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    company: Mapped[str | None] = mapped_column(String(255))
-    title: Mapped[str | None] = mapped_column(String(255))
-    linkedin_url: Mapped[str | None] = mapped_column(Text)
-    phone: Mapped[str | None] = mapped_column(String(50))
+    company: Mapped[Optional[str]] = mapped_column(String(255))
+    title: Mapped[Optional[str]] = mapped_column(String(255))
+    linkedin_url: Mapped[Optional[str]] = mapped_column(Text)
+    phone: Mapped[Optional[str]] = mapped_column(String(50))
 
     # Targeting
-    asset_class_preference: Mapped[str | None] = mapped_column(String(10))  # PE | RE | both
-    net_worth_estimate: Mapped[str | None] = mapped_column(String(20))  # bucketed; not from Apollo
-    geography: Mapped[str | None] = mapped_column(String(100))
+    asset_class_preference: Mapped[Optional[str]] = mapped_column(String(10))  # PE | RE | both
+    net_worth_estimate: Mapped[Optional[str]] = mapped_column(String(20))  # bucketed; not from Apollo
+    geography: Mapped[Optional[str]] = mapped_column(String(100))
 
     # Source
-    source: Mapped[str | None] = mapped_column(String(50))  # apollo | manual
+    source: Mapped[Optional[str]] = mapped_column(String(50))  # apollo | manual
 
     # Status
     verified_email: Mapped[bool] = mapped_column(Boolean, default=False)
