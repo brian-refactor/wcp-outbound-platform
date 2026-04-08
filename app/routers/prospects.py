@@ -57,7 +57,11 @@ async def import_csv(
     if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a .csv")
 
-    content = await file.read()
+    max_size = 10 * 1024 * 1024  # 10MB
+    content = await file.read(max_size + 1)
+    if len(content) > max_size:
+        raise HTTPException(status_code=400, detail="File too large — 10MB maximum")
+
     text = content.decode("utf-8-sig")  # handles BOM from Excel exports
     reader = csv.DictReader(io.StringIO(text))
 
@@ -93,14 +97,13 @@ async def import_csv(
         )
         db.add(prospect)
         try:
-            db.flush()  # catch integrity errors per-row without rolling back the whole batch
+            # Use a savepoint so only this row rolls back on duplicate — not the whole batch
+            with db.begin_nested():
+                db.flush()
             imported += 1
         except IntegrityError:
-            db.rollback()
             errors.append(f"Row {row_num}: {email} already exists — skipped")
             skipped += 1
-            # re-open transaction for remaining rows
-            db.begin()
 
     db.commit()
     return ImportResult(imported=imported, skipped=skipped, errors=errors)
