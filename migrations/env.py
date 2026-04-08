@@ -18,6 +18,8 @@ if database_url:
 # Import all models so Alembic autogenerate can see them
 from app.database import Base  # noqa: E402
 from app.models import Prospect  # noqa: E402, F401
+from app.models.email_event import EmailEvent  # noqa: E402, F401
+from app.models.sequence_enrollment import SequenceEnrollment  # noqa: E402, F401
 
 target_metadata = Base.metadata
 

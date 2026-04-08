@@ -7,9 +7,11 @@ Requests with a missing or incorrect secret are rejected with 401.
 
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import and_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -17,6 +19,7 @@ from app.config import settings
 from app.database import get_db
 from app.models.email_event import EmailEvent
 from app.models.prospect import Prospect
+from app.models.sequence_enrollment import SequenceEnrollment
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +80,12 @@ async def smartlead_webhook(request: Request, db: Session = Depends(get_db)):
     from_email = payload.get("from_email") or ""
     domain_used = from_email.split("@")[-1] if "@" in from_email else None
 
+    # Extract Smartlead campaign ID to link this event to the correct enrollment
+    campaign_id = str(payload.get("campaign_id") or "")
+
     # Look up the prospect by email (nullable — event still recorded if not found)
     prospect = None
+    enrollment = None
     if lead_email:
         prospect = db.query(Prospect).filter(Prospect.email == lead_email).first()
         if not prospect:
@@ -86,8 +93,23 @@ async def smartlead_webhook(request: Request, db: Session = Depends(get_db)):
                 "Smartlead event for unknown prospect email: %s", lead_email
             )
 
+    # Look up the active enrollment for this prospect + campaign
+    if prospect and campaign_id:
+        enrollment = (
+            db.query(SequenceEnrollment)
+            .filter(
+                and_(
+                    SequenceEnrollment.prospect_id == prospect.id,
+                    SequenceEnrollment.smartlead_campaign_id == campaign_id,
+                    SequenceEnrollment.status == "active",
+                )
+            )
+            .first()
+        )
+
     event = EmailEvent(
         prospect_id=prospect.id if prospect else None,
+        enrollment_id=enrollment.id if enrollment else None,
         event_type=event_type,
         email_subject=subject,
         domain_used=domain_used,
@@ -98,13 +120,31 @@ async def smartlead_webhook(request: Request, db: Session = Depends(get_db)):
 
     db.add(event)
     try:
-        db.commit()
-        logger.info(
-            "Recorded %s event for %s (message_id=%s)", event_type, lead_email, message_id
-        )
+        db.flush()
     except IntegrityError:
         db.rollback()
         # Duplicate message_id — idempotent, return 200 so Smartlead stops retrying
         logger.info("Duplicate webhook ignored (message_id=%s)", message_id)
+        return {"status": "ok"}
+
+    # Opt-out: mark enrollment and prospect as opted out
+    if event_type == "unsubscribe" and enrollment:
+        enrollment.status = "opted_out"
+        enrollment.opted_out_at = datetime.now(timezone.utc)
+        logger.info("Prospect %s opted out of enrollment %s", lead_email, enrollment.id)
+
+    # Bounce: mark enrollment as bounced
+    if event_type == "bounce" and enrollment:
+        enrollment.status = "bounced"
+        logger.info("Prospect %s bounced on enrollment %s", lead_email, enrollment.id)
+
+    db.commit()
+    logger.info(
+        "Recorded %s event for %s (message_id=%s, enrollment=%s)",
+        event_type,
+        lead_email,
+        message_id,
+        enrollment.id if enrollment else "none",
+    )
 
     return {"status": "ok"}
