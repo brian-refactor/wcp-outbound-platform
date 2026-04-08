@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.routers import prospects
+from app.routers import prospects, webhooks
 
 app = FastAPI(
     title="WCP Outbound Platform",
@@ -9,6 +9,7 @@ app = FastAPI(
 )
 
 app.include_router(prospects.router)
+app.include_router(webhooks.router)
 
 
 @app.get("/health")

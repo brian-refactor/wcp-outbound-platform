@@ -1,13 +1,19 @@
 import csv
 import io
+import logging
+from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.integrations import smartlead
 from app.models.prospect import Prospect
 from app.schemas.prospect import ImportResult, ProspectCreate, ProspectOut
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/prospects", tags=["prospects"])
 
@@ -107,3 +113,34 @@ async def import_csv(
 
     db.commit()
     return ImportResult(imported=imported, skipped=skipped, errors=errors)
+
+
+class EnrollRequest(BaseModel):
+    campaign_id: int
+    custom_fields: Optional[dict] = None
+
+
+@router.post("/{prospect_id}/enroll")
+def enroll_prospect(
+    prospect_id: str,
+    body: EnrollRequest,
+    db: Session = Depends(get_db),
+):
+    """Enroll a prospect in a Smartlead campaign."""
+    prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
+    if not prospect:
+        raise HTTPException(status_code=404, detail="Prospect not found")
+
+    try:
+        result = smartlead.enroll_prospect(
+            campaign_id=body.campaign_id,
+            email=prospect.email,
+            first_name=prospect.first_name,
+            last_name=prospect.last_name,
+            custom_fields=body.custom_fields,
+        )
+    except Exception as e:
+        logger.error("Smartlead enrollment failed for %s: %s", prospect.email, e)
+        raise HTTPException(status_code=502, detail=f"Smartlead error: {str(e)}")
+
+    return {"status": "enrolled", "smartlead_response": result}
