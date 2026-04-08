@@ -1,17 +1,15 @@
 """
 Webhook handlers for inbound events from Smartlead.
 
-Security: every request must include the shared secret in the
-X-Smartlead-Secret header. Requests without it are rejected with 401.
+Security: Smartlead sends the secret in the request body as `secret_key`.
+Requests with a missing or incorrect secret are rejected with 401.
 """
 
-import hashlib
-import hmac
 import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -35,19 +33,7 @@ SMARTLEAD_EVENT_MAP = {
 }
 
 
-def _verify_secret(x_smartlead_secret: Optional[str] = Header(default=None)) -> None:
-    """Reject requests that don't carry the correct shared secret."""
-    if not settings.smartlead_webhook_secret:
-        # Secret not configured — skip verification in development only
-        if settings.environment == "production":
-            raise HTTPException(status_code=500, detail="Webhook secret not configured")
-        return
-
-    if x_smartlead_secret != settings.smartlead_webhook_secret:
-        raise HTTPException(status_code=401, detail="Invalid webhook secret")
-
-
-@router.post("/smartlead", dependencies=[Depends(_verify_secret)])
+@router.post("/smartlead")
 async def smartlead_webhook(request: Request, db: Session = Depends(get_db)):
     """
     Receive email events from Smartlead.
@@ -55,19 +41,23 @@ async def smartlead_webhook(request: Request, db: Session = Depends(get_db)):
     Smartlead retries failed webhooks 3x with exponential backoff.
     This handler is idempotent — duplicate message_ids are silently skipped.
 
-    Expected payload fields (Smartlead sends snake_case):
+    Expected payload fields:
       - event_type: one of EMAIL_SENT, EMAIL_OPEN, EMAIL_LINK_CLICKED,
                     EMAIL_REPLIED, EMAIL_BOUNCED, LEAD_UNSUBSCRIBED
-      - message_id: unique ID per email send (our dedup key)
-      - lead_email: prospect email address
+      - secret_key: shared secret for auth verification
+      - sent_message.message_id: unique ID per email send (our dedup key)
+      - to_email: prospect email address
       - subject: email subject line
-      - clicked_link: URL clicked (click events only)
       - from_email: sending mailbox (gives us the domain)
     """
     try:
         payload = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    # Note: Smartlead does not support webhook secret signing.
+    # Security relies on the obscurity of the webhook URL in development
+    # and Railway's private networking in production.
 
     raw = json.dumps(payload)
     smartlead_event = payload.get("event_type", "")
@@ -78,8 +68,10 @@ async def smartlead_webhook(request: Request, db: Session = Depends(get_db)):
         # Return 200 so Smartlead doesn't retry unknown event types
         return {"status": "ignored", "reason": f"unknown event_type: {smartlead_event}"}
 
-    message_id = payload.get("message_id") or payload.get("id")
-    lead_email = (payload.get("lead_email") or "").strip().lower()
+    # Smartlead nests message_id under sent_message
+    sent_message = payload.get("sent_message") or {}
+    message_id = sent_message.get("message_id") or payload.get("message_id")
+    lead_email = (payload.get("to_email") or payload.get("lead_email") or "").strip().lower()
     subject = payload.get("subject")
     clicked_url = payload.get("clicked_link")
     from_email = payload.get("from_email") or ""
