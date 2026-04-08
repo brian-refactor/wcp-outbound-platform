@@ -179,6 +179,8 @@ def _prospect_custom_fields(prospect: Prospect) -> dict:
         "title":                  prospect.title,
         "geography":              prospect.geography,
         "asset_class_preference": prospect.asset_class_preference,
+        "wealth_tier":            prospect.wealth_tier,
+        "investor_type":          prospect.investor_type,
         "linkedin_url":           prospect.linkedin_url,
         "phone":                  prospect.phone,
     }.items() if v}
@@ -206,6 +208,8 @@ def prospect_new_submit(
     linkedin_url: Optional[str] = Form(None),
     asset_class_preference: Optional[str] = Form(None),
     geography: Optional[str] = Form(None),
+    wealth_tier: Optional[str] = Form(None),
+    investor_type: Optional[str] = Form(None),
     source: Optional[str] = Form("manual"),
     campaign_id: Optional[str] = Form(None),
     sequence_type: Optional[str] = Form(None),
@@ -215,7 +219,8 @@ def prospect_new_submit(
         "first_name": first_name, "last_name": last_name, "email": email,
         "company": company, "title": title, "phone": phone,
         "linkedin_url": linkedin_url, "asset_class_preference": asset_class_preference,
-        "geography": geography, "source": source or "manual",
+        "geography": geography, "wealth_tier": wealth_tier,
+        "investor_type": investor_type, "source": source or "manual",
         "campaign_id": campaign_id, "sequence_type": sequence_type,
         "high_intent_campaign_id": high_intent_campaign_id,
     }
@@ -236,6 +241,9 @@ def prospect_new_submit(
     if asset_class and asset_class not in ("PE", "RE", "both"):
         asset_class = None
 
+    wt = (wealth_tier or "").strip() or None
+    it = (investor_type or "").strip() or None
+
     prospect = Prospect(
         first_name=(first_name or "").strip() or None,
         last_name=(last_name or "").strip() or None,
@@ -246,6 +254,8 @@ def prospect_new_submit(
         linkedin_url=(linkedin_url or "").strip() or None,
         asset_class_preference=asset_class,
         geography=(geography or "").strip() or None,
+        wealth_tier=wt,
+        investor_type=it,
         source=(source or "manual").strip(),
     )
     db.add(prospect)

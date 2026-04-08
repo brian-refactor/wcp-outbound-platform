@@ -97,11 +97,36 @@
       </div>
 
       <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Wealth Tier</label>
+        <select name="wealth_tier"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">— Not specified —</option>
+          <option value="mass_affluent" {% if form.get('wealth_tier') == 'mass_affluent' %}selected{% endif %}>Mass Affluent ($100K–$1M)</option>
+          <option value="HNWI"          {% if form.get('wealth_tier') == 'HNWI'          %}selected{% endif %}>HNWI ($1M–$30M)</option>
+          <option value="UHNWI"         {% if form.get('wealth_tier') == 'UHNWI'         %}selected{% endif %}>UHNWI ($30M+)</option>
+          <option value="institutional" {% if form.get('wealth_tier') == 'institutional' %}selected{% endif %}>Institutional</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Investor Type</label>
+        <select name="investor_type"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">— Not specified —</option>
+          <option value="individual"    {% if form.get('investor_type') == 'individual'    %}selected{% endif %}>Individual</option>
+          <option value="family_office" {% if form.get('investor_type') == 'family_office' %}selected{% endif %}>Family Office</option>
+          <option value="RIA"           {% if form.get('investor_type') == 'RIA'           %}selected{% endif %}>RIA</option>
+          <option value="broker_dealer" {% if form.get('investor_type') == 'broker_dealer' %}selected{% endif %}>Broker-Dealer</option>
+          <option value="endowment"     {% if form.get('investor_type') == 'endowment'     %}selected{% endif %}>Endowment</option>
+          <option value="pension"       {% if form.get('investor_type') == 'pension'       %}selected{% endif %}>Pension</option>
+          <option value="other"         {% if form.get('investor_type') == 'other'         %}selected{% endif %}>Other</option>
+        </select>
+      </div>
+      <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">Source</label>
         <select name="source"
                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="manual" {% if not form.get('source') or form.get('source') == 'manual' %}selected{% endif %}>Manual</option>
-          <option value="apollo" {% if form.get('source') == 'apollo' %}selected{% endif %}>Apollo</option>
+          <option value="manual"   {% if not form.get('source') or form.get('source') == 'manual' %}selected{% endif %}>Manual</option>
+          <option value="apollo"   {% if form.get('source') == 'apollo'   %}selected{% endif %}>Apollo</option>
           <option value="referral" {% if form.get('source') == 'referral' %}selected{% endif %}>Referral</option>
           <option value="linkedin" {% if form.get('source') == 'linkedin' %}selected{% endif %}>LinkedIn</option>
         </select>

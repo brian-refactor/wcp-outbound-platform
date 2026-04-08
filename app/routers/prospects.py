@@ -142,6 +142,16 @@ async def import_csv(
             )
             asset_class = None
 
+        wealth_tier = (row.get("wealth_tier") or "").strip() or None
+        if wealth_tier and wealth_tier not in ("mass_affluent", "HNWI", "UHNWI", "institutional"):
+            errors.append(f"Row {row_num}: invalid wealth_tier '{wealth_tier}' — set to null")
+            wealth_tier = None
+
+        investor_type = (row.get("investor_type") or "").strip() or None
+        if investor_type and investor_type not in ("individual", "family_office", "RIA", "broker_dealer", "endowment", "pension", "other"):
+            errors.append(f"Row {row_num}: invalid investor_type '{investor_type}' — set to null")
+            investor_type = None
+
         values = dict(
             id=uuid.uuid4(),
             email=email,
@@ -153,6 +163,8 @@ async def import_csv(
             phone=(row.get("phone") or "").strip() or None,
             asset_class_preference=asset_class,
             geography=(row.get("geography") or "").strip() or None,
+            wealth_tier=wealth_tier,
+            investor_type=investor_type,
             source=(row.get("source") or "").strip() or "apollo",
         )
         # ON CONFLICT DO NOTHING is atomic — no savepoint / transaction state issues
@@ -209,6 +221,8 @@ def enroll_prospect(
         "title":                  prospect.title,
         "geography":              prospect.geography,
         "asset_class_preference": prospect.asset_class_preference,
+        "wealth_tier":            prospect.wealth_tier,
+        "investor_type":          prospect.investor_type,
         "linkedin_url":           prospect.linkedin_url,
         "phone":                  prospect.phone,
     }.items() if v}

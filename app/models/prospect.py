@@ -28,6 +28,10 @@ class Prospect(Base):
     net_worth_estimate: Mapped[Optional[str]] = mapped_column(String(20))  # bucketed; not from Apollo
     geography: Mapped[Optional[str]] = mapped_column(String(100))
 
+    # Investor classification
+    wealth_tier: Mapped[Optional[str]] = mapped_column(String(20))   # mass_affluent | HNWI | UHNWI | institutional
+    investor_type: Mapped[Optional[str]] = mapped_column(String(20)) # individual | family_office | RIA | broker_dealer | endowment | pension | other
+
     # Source
     source: Mapped[Optional[str]] = mapped_column(String(50))  # apollo | manual
 

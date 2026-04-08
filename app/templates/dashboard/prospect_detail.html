@@ -67,6 +67,18 @@
         <div class="text-gray-800 mt-0.5">{{ prospect.asset_class_preference }}</div>
       </div>
       {% endif %}
+      {% if prospect.wealth_tier %}
+      <div>
+        <div class="text-xs text-gray-400 font-medium uppercase tracking-wide">Wealth Tier</div>
+        <div class="text-gray-800 mt-0.5">{{ prospect.wealth_tier }}</div>
+      </div>
+      {% endif %}
+      {% if prospect.investor_type %}
+      <div>
+        <div class="text-xs text-gray-400 font-medium uppercase tracking-wide">Investor Type</div>
+        <div class="text-gray-800 mt-0.5">{{ prospect.investor_type }}</div>
+      </div>
+      {% endif %}
       {% if prospect.geography %}
       <div>
         <div class="text-xs text-gray-400 font-medium uppercase tracking-wide">Geography</div>
