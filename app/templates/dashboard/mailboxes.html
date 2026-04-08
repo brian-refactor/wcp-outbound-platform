@@ -19,6 +19,32 @@
 </div>
 {% endif %}
 
+{# ── Summary cards ── #}
+{% if mailboxes %}
+{% set active_warmup = mailboxes | selectattr('warmup_details') | list %}
+{% set warmup_on = active_warmup | selectattr('warmup_details.status', 'equalto', 'ACTIVE') | list %}
+{% set total_daily_cap = mailboxes | map(attribute='message_per_day') | select | sum %}
+{% set total_sent_today = mailboxes | map(attribute='daily_sent_count') | select | sum %}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+  <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+    <div class="text-3xl font-bold text-gray-900">{{ mailboxes | length }}</div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Total Mailboxes</div>
+  </div>
+  <div class="rounded-xl border border-gray-200 bg-green-50 px-5 py-4 shadow-sm">
+    <div class="text-3xl font-bold text-green-600">{{ warmup_on | length }}</div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Warmup Active</div>
+  </div>
+  <div class="rounded-xl border border-gray-200 bg-indigo-50 px-5 py-4 shadow-sm">
+    <div class="text-3xl font-bold text-indigo-600">{{ total_daily_cap }}</div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Daily Send Cap</div>
+  </div>
+  <div class="rounded-xl border border-gray-200 bg-blue-50 px-5 py-4 shadow-sm">
+    <div class="text-3xl font-bold text-blue-600">{{ total_sent_today }}</div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Sent Today (Smartlead)</div>
+  </div>
+</div>
+{% endif %}
+
 {# ── Two-column layout: mailboxes left, domain sends right ── #}
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -29,7 +55,7 @@
         <h2 class="text-sm font-semibold text-gray-700">
           Connected Mailboxes
           {% if mailboxes %}
-          <span class="ml-2 text-xs font-normal text-gray-400">{{ mailboxes | length }} total</span>
+          <span class="ml-2 text-xs font-normal text-gray-400">{{ mailboxes | length }} accounts</span>
           {% endif %}
         </h2>
         <span class="text-xs text-gray-400">Live from Smartlead</span>
@@ -40,61 +66,87 @@
         <thead class="bg-gray-50 border-b border-gray-200">
           <tr>
             <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Email</th>
-            <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Name</th>
+            <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Type</th>
             <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Warmup</th>
-            <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Limit</th>
-            <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Sent (DB)</th>
+            <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Sent Today</th>
+            <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Cap</th>
+            <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Health</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
           {% for mb in mailboxes %}
-          {% set email = mb.get('from_email') or mb.get('email') or '—' %}
-          {% set domain = email.split('@')[1] if '@' in email else '' %}
-          {% set warmup = mb.get('warmup_enabled') or mb.get('warmup_details', {}).get('warmup_enabled') %}
-          {% set daily_limit = mb.get('message_per_day') or mb.get('daily_limit') or mb.get('max_email_per_day') %}
-          {% set db_sent = domain_send_map.get(domain, 0) %}
+          {% set email = mb.get('from_email') or '—' %}
+          {% set warmup = mb.get('warmup_details') or {} %}
+          {% set warmup_status = warmup.get('status', '') %}
+          {% set warmup_rep = warmup.get('warmup_reputation', '') %}
+          {% set smtp_ok = mb.get('is_smtp_success') %}
+          {% set imap_ok = mb.get('is_imap_success') %}
+          {% set sent_today = mb.get('daily_sent_count') or 0 %}
+          {% set cap = mb.get('message_per_day') or 0 %}
+          {% set pct = ((sent_today / cap * 100) | round | int) if cap > 0 else 0 %}
           <tr class="hover:bg-gray-50">
             <td class="px-4 py-3">
               <div class="font-medium text-gray-800">{{ email }}</div>
-              <div class="text-xs text-gray-400">{{ domain }}</div>
-            </td>
-            <td class="px-4 py-3 text-gray-600">
-              {{ mb.get('from_name') or '—' }}
+              <div class="text-xs text-gray-400">{{ mb.get('from_name') or '' }}</div>
             </td>
             <td class="px-4 py-3">
-              {% if warmup %}
-              <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Warming</span>
+              <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                {{ mb.get('type') or '—' }}
+              </span>
+            </td>
+            <td class="px-4 py-3">
+              {% if warmup_status == 'ACTIVE' %}
+              <div class="flex items-center gap-1.5">
+                <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>
+                {% if warmup_rep %}<span class="text-xs text-gray-400">{{ warmup_rep }}</span>{% endif %}
+              </div>
+              {% elif warmup_status == 'PAUSED' %}
+              <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Paused</span>
+              {% elif warmup_status %}
+              <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">{{ warmup_status }}</span>
               {% else %}
-              <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Off</span>
+              <span class="text-xs text-gray-400">—</span>
               {% endif %}
             </td>
-            <td class="px-4 py-3 text-right text-gray-600">
-              {{ daily_limit if daily_limit else '—' }}
+            <td class="px-4 py-3 text-right">
+              <div class="font-medium {% if sent_today > 0 %}text-indigo-600{% else %}text-gray-400{% endif %}">
+                {{ sent_today }}
+              </div>
+              {% if cap > 0 %}
+              <div class="w-full bg-gray-100 rounded-full h-1 mt-1">
+                <div class="h-1 rounded-full {% if pct >= 90 %}bg-red-400{% elif pct >= 70 %}bg-yellow-400{% else %}bg-indigo-400{% endif %}"
+                     style="width: {{ [pct, 100] | min }}%"></div>
+              </div>
+              {% endif %}
             </td>
-            <td class="px-4 py-3 text-right font-medium
-                        {% if db_sent > 0 %}text-indigo-600{% else %}text-gray-400{% endif %}">
-              {{ db_sent }}
+            <td class="px-4 py-3 text-right text-gray-600 font-medium">{{ cap if cap else '—' }}</td>
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <span title="SMTP" class="text-xs {% if smtp_ok %}text-green-500{% else %}text-red-400{% endif %}">
+                  {% if smtp_ok %}✓{% else %}✗{% endif %} SMTP
+                </span>
+                <span title="IMAP" class="text-xs {% if imap_ok %}text-green-500{% else %}text-red-400{% endif %}">
+                  {% if imap_ok %}✓{% else %}✗{% endif %} IMAP
+                </span>
+              </div>
             </td>
           </tr>
           {% endfor %}
         </tbody>
 
         {# Totals row #}
-        {% set total_daily = mailboxes | selectattr('message_per_day') | map(attribute='message_per_day') | sum %}
-        {% if total_daily > 0 %}
+        {% set total_cap = mailboxes | map(attribute='message_per_day') | select | sum %}
+        {% set total_today = mailboxes | map(attribute='daily_sent_count') | select | sum %}
         <tfoot class="border-t-2 border-gray-200 bg-gray-50">
           <tr>
             <td colspan="3" class="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              Total
+              Total ({{ mailboxes | length }} mailboxes)
             </td>
-            <td class="px-4 py-3 text-right font-bold text-gray-800">{{ total_daily }}/day</td>
-            <td class="px-4 py-3 text-right font-bold text-indigo-600">
-              {{ domain_send_map.values() | sum }}
-            </td>
+            <td class="px-4 py-3 text-right font-bold text-indigo-700">{{ total_today }}</td>
+            <td class="px-4 py-3 text-right font-bold text-gray-800">{{ total_cap }}/day</td>
+            <td></td>
           </tr>
         </tfoot>
-        {% endif %}
-
       </table>
 
       {% elif not smartlead_error %}
@@ -109,12 +161,12 @@
     </div>
   </div>
 
-  {# Sends by domain (1/3 width) #}
+  {# Sends by domain from local DB (1/3 width) #}
   <div>
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div class="px-6 py-4 border-b border-gray-100">
-        <h2 class="text-sm font-semibold text-gray-700">Sends by Domain</h2>
-        <div class="text-xs text-gray-400 mt-0.5">From your local event log</div>
+        <h2 class="text-sm font-semibold text-gray-700">Total Sends by Domain</h2>
+        <div class="text-xs text-gray-400 mt-0.5">From your local event log (all time)</div>
       </div>
 
       {% if domain_sends %}
@@ -126,7 +178,6 @@
             <span class="text-sm font-medium text-gray-800">{{ row.domain }}</span>
             <span class="text-sm font-bold text-indigo-600">{{ row.total_sent }}</span>
           </div>
-          {# Progress bar #}
           <div class="w-full bg-gray-100 rounded-full h-1.5">
             <div class="bg-indigo-500 h-1.5 rounded-full"
                  style="width: {{ ((row.total_sent / max_sends) * 100) | round }}%"></div>
@@ -139,10 +190,8 @@
         </div>
         {% endfor %}
       </div>
-
-      {# Grand total #}
       <div class="px-4 py-3 border-t-2 border-gray-200 bg-gray-50 flex items-center justify-between">
-        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Sent</span>
+        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</span>
         <span class="text-sm font-bold text-indigo-700">
           {{ domain_sends | map(attribute='total_sent') | sum }}
         </span>
