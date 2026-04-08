@@ -29,6 +29,18 @@ class OverviewStats(BaseModel):
     total_completed: int
     hubspot_deals: int
     hubspot_pending: int
+    high_intent_upgrades: int
+
+
+class SequenceTypeRow(BaseModel):
+    sequence_type: str
+    enrolled: int
+    opened: int
+    clicked: int
+    replied: int
+    standard_count: int
+    high_intent_count: int
+    reply_rate: float
 
 
 class DomainSendRow(BaseModel):
@@ -118,6 +130,11 @@ def overview_stats(db: Session = Depends(get_db)):
         )
         .scalar() or 0
     )
+    high_intent_upgrades = (
+        db.query(func.count(SequenceEnrollment.id))
+        .filter(SequenceEnrollment.high_intent_switched_at.is_not(None))
+        .scalar() or 0
+    )
 
     return OverviewStats(
         total_prospects=total_prospects,
@@ -129,7 +146,43 @@ def overview_stats(db: Session = Depends(get_db)):
         total_completed=total_completed,
         hubspot_deals=hubspot_deals,
         hubspot_pending=hubspot_pending,
+        high_intent_upgrades=high_intent_upgrades,
     )
+
+
+@router.get("/sequences/by-type", response_model=list[SequenceTypeRow])
+def sequences_by_type(db: Session = Depends(get_db)):
+    """Sequence funnel grouped by type only — tracks merged. Used for overview chart."""
+    rows = db.execute(text("""
+        SELECT
+            se.sequence_type,
+            COUNT(DISTINCT se.id)                                                             AS enrolled,
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'open'         THEN ee.prospect_id END) AS opened,
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'click'        THEN ee.prospect_id END) AS clicked,
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'reply'        THEN ee.prospect_id END) AS replied,
+            COUNT(DISTINCT CASE WHEN se.track = 'standard'          THEN se.id END)          AS standard_count,
+            COUNT(DISTINCT CASE WHEN se.track = 'high_intent'       THEN se.id END)          AS high_intent_count
+        FROM sequence_enrollments se
+        LEFT JOIN email_events ee ON ee.enrollment_id = se.id
+        GROUP BY se.sequence_type
+        ORDER BY se.sequence_type
+    """)).mappings().all()
+
+    result = []
+    for row in rows:
+        enrolled = row["enrolled"] or 0
+        replied = row["replied"] or 0
+        result.append(SequenceTypeRow(
+            sequence_type=row["sequence_type"],
+            enrolled=enrolled,
+            opened=row["opened"] or 0,
+            clicked=row["clicked"] or 0,
+            replied=replied,
+            standard_count=row["standard_count"] or 0,
+            high_intent_count=row["high_intent_count"] or 0,
+            reply_rate=round(replied / enrolled * 100, 1) if enrolled > 0 else 0.0,
+        ))
+    return result
 
 
 @router.get("/sequences", response_model=list[SequenceRow])

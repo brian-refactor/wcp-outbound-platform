@@ -32,14 +32,20 @@
 
   {# Funnel chart #}
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-    <h2 class="text-sm font-semibold text-gray-700 mb-4">Funnel by Sequence Type</h2>
+    <div class="flex items-start justify-between mb-4">
+      <h2 class="text-sm font-semibold text-gray-700">Funnel by Sequence Type</h2>
+      {% if stats.high_intent_upgrades > 0 %}
+      <div class="text-right">
+        <div class="text-lg font-bold text-yellow-600">{{ stats.high_intent_upgrades }}</div>
+        <div class="text-xs text-gray-400">High Intent Upgrades</div>
+      </div>
+      {% endif %}
+    </div>
     {% if sequences %}
     <canvas id="funnelChart" height="200"></canvas>
     <script>
       (function() {
-        const labels = {{ sequences | map(attribute='sequence_type') | list | tojson }};
-        const tracks = {{ sequences | map(attribute='track') | list | tojson }};
-        const chartLabels = labels.map((l, i) => l + ' / ' + tracks[i]);
+        const labels  = {{ sequences | map(attribute='sequence_type') | list | tojson }};
         const enrolled = {{ sequences | map(attribute='enrolled') | list | tojson }};
         const opened   = {{ sequences | map(attribute='opened')   | list | tojson }};
         const clicked  = {{ sequences | map(attribute='clicked')  | list | tojson }};
@@ -48,7 +54,7 @@
         new Chart(document.getElementById('funnelChart'), {
           type: 'bar',
           data: {
-            labels: chartLabels,
+            labels: labels,
             datasets: [
               { label: 'Enrolled', data: enrolled, backgroundColor: '#6366f1' },
               { label: 'Opened',   data: opened,   backgroundColor: '#0ea5e9' },

@@ -4,6 +4,76 @@
 
 {% block content %}
 
+{# ── Charts row ── #}
+{% if seq_types %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+  {# Funnel by sequence type #}
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <h2 class="text-sm font-semibold text-gray-700 mb-4">Funnel by Sequence Type</h2>
+    <canvas id="funnelChart" height="200"></canvas>
+    <script>
+      (function() {
+        const labels   = {{ seq_types | map(attribute='sequence_type') | list | tojson }};
+        const enrolled = {{ seq_types | map(attribute='enrolled')      | list | tojson }};
+        const opened   = {{ seq_types | map(attribute='opened')        | list | tojson }};
+        const clicked  = {{ seq_types | map(attribute='clicked')       | list | tojson }};
+        const replied  = {{ seq_types | map(attribute='replied')       | list | tojson }};
+        new Chart(document.getElementById('funnelChart'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              { label: 'Enrolled', data: enrolled, backgroundColor: '#6366f1' },
+              { label: 'Opened',   data: opened,   backgroundColor: '#0ea5e9' },
+              { label: 'Clicked',  data: clicked,  backgroundColor: '#8b5cf6' },
+              { label: 'Replied',  data: replied,  backgroundColor: '#22c55e' },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom' } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+          },
+        });
+      })();
+    </script>
+  </div>
+
+  {# Standard vs High Intent per sequence type #}
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <h2 class="text-sm font-semibold text-gray-700 mb-4">Track Breakdown</h2>
+    <canvas id="trackChart" height="200"></canvas>
+    <script>
+      (function() {
+        const labels        = {{ seq_types | map(attribute='sequence_type')   | list | tojson }};
+        const standardData  = {{ seq_types | map(attribute='standard_count')  | list | tojson }};
+        const hiData        = {{ seq_types | map(attribute='high_intent_count')| list | tojson }};
+        new Chart(document.getElementById('trackChart'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              { label: 'Standard',     data: standardData, backgroundColor: '#6366f1', stack: 'track' },
+              { label: 'High Intent',  data: hiData,        backgroundColor: '#f59e0b', stack: 'track' },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom' } },
+            scales: {
+              x: { stacked: true },
+              y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } },
+            },
+          },
+        });
+      })();
+    </script>
+  </div>
+
+</div>
+{% endif %}
+
 {# ── Performance table ── #}
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
   <div class="px-6 py-4 border-b border-gray-100">

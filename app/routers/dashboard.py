@@ -27,6 +27,7 @@ from app.routers.stats import (
     recent_events,
     sends_by_domain,
     sequence_stats,
+    sequences_by_type,
     sync_stats,
 )
 
@@ -46,14 +47,14 @@ PAGE_SIZE = 25
 @router.get("/", response_class=HTMLResponse)
 def dashboard_overview(request: Request, db: Session = Depends(get_db)):
     stats = overview_stats(db=db)
-    seq = sequence_stats(db=db)
+    seq_by_type = sequences_by_type(db=db)
     events = recent_events(limit=20, db=db)
     return templates.TemplateResponse(
         "dashboard/overview.html",
         {
             "request": request,
             "stats": stats,
-            "sequences": seq,
+            "sequences": seq_by_type,
             "events": events,
             "active_page": "overview",
         },
@@ -449,6 +450,7 @@ def dashboard_prospect_detail(
 @router.get("/sequences", response_class=HTMLResponse)
 def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
     seq = sequence_stats(db=db)
+    seq_types = sequences_by_type(db=db)
 
     # Top companies by reply count
     top_companies = db.execute(text("""
@@ -470,6 +472,7 @@ def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
         {
             "request": request,
             "sequences": seq,
+            "seq_types": seq_types,
             "top_companies": top_companies,
             "active_page": "sequences",
         },
