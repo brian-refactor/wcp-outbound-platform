@@ -52,3 +52,48 @@ class ImportResult(BaseModel):
     imported: int
     skipped: int
     errors: list[str]
+
+
+class EmailEventOut(BaseModel):
+    id: uuid.UUID
+    event_type: str
+    email_subject: Optional[str]
+    domain_used: Optional[str]
+    clicked_url: Optional[str]
+    occurred_at: datetime
+    hubspot_synced_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}
+
+
+class EnrollmentOut(BaseModel):
+    id: uuid.UUID
+    smartlead_campaign_id: str
+    sequence_type: str
+    track: str
+    status: str
+    enrolled_at: datetime
+    high_intent_switched_at: Optional[datetime]
+    opted_out_at: Optional[datetime]
+    completed_at: Optional[datetime]
+    events: list[EmailEventOut] = []
+
+    model_config = {"from_attributes": True}
+
+
+class ProspectActivityOut(BaseModel):
+    id: uuid.UUID
+    email: str
+    first_name: Optional[str]
+    last_name: Optional[str]
+    company: Optional[str]
+    title: Optional[str]
+    asset_class_preference: Optional[str]
+    geography: Optional[str]
+    source: Optional[str]
+    verified_email: bool
+    accredited_status: str
+    created_at: datetime
+    enrollments: list[EnrollmentOut] = []
+
+    model_config = {"from_attributes": True}

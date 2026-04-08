@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     # Redis (Celery broker + result backend)
     redis_url: str = "redis://localhost:6379/0"
 
+    # HubSpot
+    hubspot_access_token: str = ""  # private app token
+
+    # API authentication
+    api_key: str = ""  # X-API-Key header value; empty string disables auth in dev
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

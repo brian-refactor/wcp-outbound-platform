@@ -6,19 +6,32 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import require_api_key
 from app.integrations import smartlead
+from app.models.email_event import EmailEvent
 from app.models.prospect import Prospect
 from app.models.sequence_enrollment import SequenceEnrollment
-from app.schemas.prospect import ImportResult, ProspectCreate, ProspectOut
+from app.schemas.prospect import (
+    EnrollmentOut,
+    ImportResult,
+    ProspectActivityOut,
+    ProspectCreate,
+    ProspectOut,
+)
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/prospects", tags=["prospects"])
+router = APIRouter(
+    prefix="/prospects",
+    tags=["prospects"],
+    dependencies=[Depends(require_api_key)],
+)
 
 
 @router.get("/", response_model=list[ProspectOut])
@@ -28,6 +41,43 @@ def list_prospects(
     db: Session = Depends(get_db),
 ):
     return db.query(Prospect).offset(skip).limit(limit).all()
+
+
+@router.get("/{prospect_id}/activity", response_model=ProspectActivityOut)
+def get_prospect_activity(prospect_id: str, db: Session = Depends(get_db)):
+    """Full enrollment and email event history for a prospect."""
+    prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
+    if not prospect:
+        raise HTTPException(status_code=404, detail="Prospect not found")
+
+    enrollments = (
+        db.query(SequenceEnrollment)
+        .filter(SequenceEnrollment.prospect_id == prospect.id)
+        .order_by(SequenceEnrollment.enrolled_at.desc())
+        .all()
+    )
+
+    # Fetch all events for these enrollments in one query
+    events_by_enrollment: dict = {}
+    if enrollments:
+        enrollment_ids = [e.id for e in enrollments]
+        all_events = (
+            db.query(EmailEvent)
+            .filter(EmailEvent.enrollment_id.in_(enrollment_ids))
+            .order_by(EmailEvent.occurred_at.asc())
+            .all()
+        )
+        for evt in all_events:
+            events_by_enrollment.setdefault(evt.enrollment_id, []).append(evt)
+
+    result = ProspectActivityOut.model_validate(prospect)
+    result.enrollments = []
+    for enrollment in enrollments:
+        enr_out = EnrollmentOut.model_validate(enrollment)
+        enr_out.events = events_by_enrollment.get(enrollment.id, [])
+        result.enrollments.append(enr_out)
+
+    return result
 
 
 @router.get("/{prospect_id}", response_model=ProspectOut)

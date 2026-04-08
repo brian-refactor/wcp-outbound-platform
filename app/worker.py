@@ -19,7 +19,7 @@ celery_app = Celery(
     "wcp_outbound",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["app.tasks.high_intent"],
+    include=["app.tasks.high_intent", "app.tasks.hubspot_sync"],
 )
 
 celery_app.conf.update(
@@ -37,6 +37,10 @@ celery_app.conf.update(
         "scan-high-intent": {
             "task": "app.tasks.high_intent.scan_high_intent",
             "schedule": crontab(minute="*/15"),  # every 15 minutes
+        },
+        "sync-to-hubspot": {
+            "task": "app.tasks.hubspot_sync.sync_to_hubspot",
+            "schedule": crontab(minute="*/5"),  # every 5 minutes
         },
     },
 )

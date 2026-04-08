@@ -33,6 +33,8 @@ SMARTLEAD_EVENT_MAP = {
     "EMAIL_REPLIED": "reply",
     "EMAIL_BOUNCED": "bounce",
     "LEAD_UNSUBSCRIBED": "unsubscribe",
+    "LEAD_COMPLETED_SEQUENCE": "complete",
+    "SEQUENCE_COMPLETED": "complete",  # defensive alias — Smartlead event name varies by account
 }
 
 
@@ -137,6 +139,18 @@ async def smartlead_webhook(request: Request, db: Session = Depends(get_db)):
     if event_type == "bounce" and enrollment:
         enrollment.status = "bounced"
         logger.info("Prospect %s bounced on enrollment %s", lead_email, enrollment.id)
+
+    # Reply: mark enrollment as completed
+    if event_type == "reply" and enrollment:
+        enrollment.status = "completed"
+        enrollment.completed_at = datetime.now(timezone.utc)
+        logger.info("Prospect %s replied — enrollment %s marked completed", lead_email, enrollment.id)
+
+    # Sequence complete: mark enrollment as completed
+    if event_type == "complete" and enrollment:
+        enrollment.status = "completed"
+        enrollment.completed_at = datetime.now(timezone.utc)
+        logger.info("Prospect %s completed sequence — enrollment %s", lead_email, enrollment.id)
 
     db.commit()
     logger.info(
