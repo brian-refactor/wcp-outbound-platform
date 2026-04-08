@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}{{ prospect.first_name }} {{ prospect.last_name }}{% endblock %}
+{% block heading %}
+  <div class="flex items-center gap-2">
+    <a href="/dashboard/prospects" class="text-gray-400 hover:text-gray-700 transition-colors">Prospects</a>
+    <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+    </svg>
+    <span>{{ prospect.first_name }} {{ prospect.last_name }}</span>
+  </div>
+{% endblock %}
+
+{% block content %}
+
+{% set status_colors = {
+  "active":    "bg-blue-100 text-blue-700",
+  "completed": "bg-green-100 text-green-700",
+  "bounced":   "bg-red-100 text-red-700",
+  "opted_out": "bg-orange-100 text-orange-700",
+} %}
+{% set event_colors = {
+  "sent":        "bg-gray-100 text-gray-700",
+  "open":        "bg-blue-100 text-blue-700",
+  "click":       "bg-purple-100 text-purple-700",
+  "reply":       "bg-green-100 text-green-700",
+  "bounce":      "bg-red-100 text-red-700",
+  "unsubscribe": "bg-orange-100 text-orange-700",
+  "complete":    "bg-teal-100 text-teal-700",
+} %}
+
+{# ── Prospect header card ── #}
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+  <div class="flex flex-wrap gap-6">
+    <div>
+      <div class="text-xl font-bold text-gray-900">
+        {{ prospect.first_name or '' }} {{ prospect.last_name or '' }}
+      </div>
+      <div class="text-sm text-gray-500">{{ prospect.email }}</div>
+      {% if prospect.title %}<div class="text-sm text-gray-600 mt-0.5">{{ prospect.title }}</div>{% endif %}
+    </div>
+    <div class="flex flex-wrap gap-8 text-sm">
+      {% if prospect.company %}
+      <div>
+        <div class="text-xs text-gray-400 font-medium uppercase tracking-wide">Company</div>
+        <div class="text-gray-800 mt-0.5">{{ prospect.company }}</div>
+      </div>
+      {% endif %}
+      {% if prospect.phone %}
+      <div>
+        <div class="text-xs text-gray-400 font-medium uppercase tracking-wide">Phone</div>
+        <div class="text-gray-800 mt-0.5">{{ prospect.phone }}</div>
+      </div>
+      {% endif %}
+      {% if prospect.asset_class_preference %}
+      <div>
+        <div class="text-xs text-gray-400 font-medium uppercase tracking-wide">Asset Class</div>
+        <div class="text-gray-800 mt-0.5">{{ prospect.asset_class_preference }}</div>
+      </div>
+      {% endif %}
+      {% if prospect.geography %}
+      <div>
+        <div class="text-xs text-gray-400 font-medium uppercase tracking-wide">Geography</div>
+        <div class="text-gray-800 mt-0.5">{{ prospect.geography }}</div>
+      </div>
+      {% endif %}
+      <div>
+        <div class="text-xs text-gray-400 font-medium uppercase tracking-wide">Accredited</div>
+        <div class="text-gray-800 mt-0.5">{{ prospect.accredited_status }}</div>
+      </div>
+      <div>
+        <div class="text-xs text-gray-400 font-medium uppercase tracking-wide">Source</div>
+        <div class="text-gray-800 mt-0.5">{{ prospect.source or '—' }}</div>
+      </div>
+      <div>
+        <div class="text-xs text-gray-400 font-medium uppercase tracking-wide">Added</div>
+        <div class="text-gray-800 mt-0.5">{{ prospect.created_at.strftime('%b %d, %Y') }}</div>
+      </div>
+    </div>
+  </div>
+  {% if prospect.linkedin_url %}
+  <div class="mt-3">
+    <a href="{{ prospect.linkedin_url }}" target="_blank"
+       class="text-xs text-indigo-600 hover:text-indigo-800 transition-colors">
+      LinkedIn Profile →
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+{# ── Enrollments ── #}
+{% if enrollments %}
+<h2 class="text-sm font-semibold text-gray-700 mb-3">
+  Enrollment History ({{ enrollments | length }})
+</h2>
+
+{% for enrollment in enrollments %}
+{% set enr_events = events_by_enrollment.get(enrollment.id | string, []) %}
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-4 overflow-hidden">
+
+  {# Enrollment header #}
+  <div class="flex flex-wrap items-center gap-4 px-6 py-4 border-b border-gray-100 bg-gray-50">
+    <span class="font-mono text-sm font-semibold text-gray-800">{{ enrollment.sequence_type }}</span>
+    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium
+                 {{ status_colors.get(enrollment.status, 'bg-gray-100 text-gray-600') }}">
+      {{ enrollment.status }}
+    </span>
+    {% if enrollment.track == 'high_intent' %}
+    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+      High Intent
+    </span>
+    {% endif %}
+    <div class="ml-auto flex flex-wrap gap-6 text-xs text-gray-500">
+      <span>Enrolled {{ enrollment.enrolled_at.strftime('%b %d, %Y %H:%M') }}</span>
+      {% if enrollment.high_intent_switched_at %}
+      <span class="text-yellow-600">
+        High Intent switch {{ enrollment.high_intent_switched_at.strftime('%b %d %H:%M') }}
+      </span>
+      {% endif %}
+      {% if enrollment.completed_at %}
+      <span class="text-green-600">
+        Completed {{ enrollment.completed_at.strftime('%b %d, %Y %H:%M') }}
+      </span>
+      {% endif %}
+      {% if enrollment.opted_out_at %}
+      <span class="text-orange-600">
+        Opted out {{ enrollment.opted_out_at.strftime('%b %d, %Y %H:%M') }}
+      </span>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Event timeline #}
+  {% if enr_events %}
+  <div class="px-6 py-3">
+    <table class="w-full text-xs">
+      <thead>
+        <tr class="text-gray-400 uppercase tracking-wide">
+          <th class="text-left py-1.5 font-medium w-36">Time</th>
+          <th class="text-left py-1.5 font-medium w-24">Event</th>
+          <th class="text-left py-1.5 font-medium">Subject</th>
+          <th class="text-left py-1.5 font-medium w-36">Domain</th>
+          <th class="text-left py-1.5 font-medium w-8">HS</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for ev in enr_events %}
+        <tr>
+          <td class="py-1.5 text-gray-400">{{ ev.occurred_at.strftime('%b %d %H:%M') }}</td>
+          <td class="py-1.5">
+            <span class="px-1.5 py-0.5 rounded text-xs font-medium
+                         {{ event_colors.get(ev.event_type, 'bg-gray-100 text-gray-600') }}">
+              {{ ev.event_type }}
+            </span>
+          </td>
+          <td class="py-1.5 text-gray-600 truncate max-w-xs">
+            {{ ev.email_subject or '—' }}
+            {% if ev.clicked_url %}
+            <span class="text-purple-500 ml-1">→ {{ ev.clicked_url[:60] }}…</span>
+            {% endif %}
+          </td>
+          <td class="py-1.5 text-gray-400">{{ ev.domain_used or '—' }}</td>
+          <td class="py-1.5">
+            {% if ev.hubspot_synced_at %}
+            <span class="text-green-500" title="Synced {{ ev.hubspot_synced_at }}">✓</span>
+            {% else %}
+            <span class="text-gray-300">–</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="px-6 py-4 text-xs text-gray-400">No email events recorded for this enrollment.</div>
+  {% endif %}
+
+</div>
+{% endfor %}
+
+{% else %}
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-10 text-center text-sm text-gray-400">
+  This prospect has not been enrolled in any sequence yet.
+</div>
+{% endif %}
+
+{% endblock %}

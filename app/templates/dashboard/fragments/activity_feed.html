@@ -1,0 +1,36 @@
+{% set badge_colors = {
+  "sent":        "bg-gray-100 text-gray-700",
+  "open":        "bg-blue-100 text-blue-700",
+  "click":       "bg-purple-100 text-purple-700",
+  "reply":       "bg-green-100 text-green-700",
+  "bounce":      "bg-red-100 text-red-700",
+  "unsubscribe": "bg-orange-100 text-orange-700",
+  "complete":    "bg-teal-100 text-teal-700",
+} %}
+
+{% if events %}
+<div class="space-y-2 overflow-y-auto max-h-96">
+  {% for ev in events %}
+  <div class="flex items-start gap-3 py-2 border-b border-gray-50 last:border-0">
+    <span class="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full
+                 {{ badge_colors.get(ev.event_type, 'bg-gray-100 text-gray-600') }}">
+      {{ ev.event_type }}
+    </span>
+    <div class="min-w-0 flex-1">
+      <div class="text-xs font-medium text-gray-800 truncate">
+        {{ ev.prospect_name or ev.prospect_email }}
+        {% if ev.company %}<span class="text-gray-400 font-normal">· {{ ev.company }}</span>{% endif %}
+      </div>
+      {% if ev.email_subject %}
+      <div class="text-xs text-gray-400 truncate">"{{ ev.email_subject }}"</div>
+      {% endif %}
+    </div>
+    <div class="shrink-0 text-xs text-gray-400 whitespace-nowrap">
+      {{ ev.occurred_at.strftime('%m/%d %H:%M') }}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-sm text-gray-400 text-center py-8">No activity yet.</div>
+{% endif %}

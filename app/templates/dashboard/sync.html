@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}HubSpot Sync{% endblock %}
+{% block heading %}HubSpot Sync Health{% endblock %}
+
+{% block content %}
+
+{# ── Status cards ── #}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+
+  <div class="rounded-xl border border-gray-200 px-5 py-4 shadow-sm
+              {% if sync.pending > 0 %}bg-yellow-50{% else %}bg-green-50{% endif %}">
+    <div class="text-3xl font-bold
+                {% if sync.pending > 0 %}text-yellow-600{% else %}text-green-600{% endif %}">
+      {{ sync.pending }}
+    </div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Pending Sync</div>
+  </div>
+
+  <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+    <div class="text-3xl font-bold text-indigo-600">{{ sync.synced_last_1h }}</div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Synced Last Hour</div>
+  </div>
+
+  <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+    <div class="text-3xl font-bold text-indigo-600">{{ sync.synced_last_24h }}</div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Synced Last 24h</div>
+  </div>
+
+  <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+    <div class="text-sm font-bold text-gray-800">
+      {% if sync.last_synced_at %}
+        {{ sync.last_synced_at.strftime('%b %d, %H:%M') }}
+      {% else %}
+        Never
+      {% endif %}
+    </div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Last Sync</div>
+  </div>
+
+</div>
+
+{# ── Backlog warning ── #}
+{% if sync.oldest_pending_at %}
+<div class="rounded-xl border border-yellow-200 bg-yellow-50 px-5 py-4 mb-6 flex items-start gap-3">
+  <svg class="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.834-1.964-.834-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+  </svg>
+  <div>
+    <div class="text-sm font-semibold text-yellow-800">
+      {{ sync.pending }} event{{ 's' if sync.pending != 1 else '' }} pending — oldest from
+      {{ sync.oldest_pending_at.strftime('%b %d, %Y %H:%M UTC') }}
+    </div>
+    <div class="text-xs text-yellow-600 mt-0.5">
+      The Celery worker runs sync every 5 minutes. If this backlog is growing, check that the worker is running.
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Recent sync log ── #}
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+  <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+    <h2 class="text-sm font-semibold text-gray-700">Recent Synced Events</h2>
+    <span class="text-xs text-gray-400">Last 50</span>
+  </div>
+
+  {% set event_colors = {
+    "sent":        "bg-gray-100 text-gray-700",
+    "open":        "bg-blue-100 text-blue-700",
+    "click":       "bg-purple-100 text-purple-700",
+    "reply":       "bg-green-100 text-green-700",
+    "bounce":      "bg-red-100 text-red-700",
+    "unsubscribe": "bg-orange-100 text-orange-700",
+    "complete":    "bg-teal-100 text-teal-700",
+  } %}
+
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 border-b border-gray-200">
+      <tr>
+        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Prospect</th>
+        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Event</th>
+        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Occurred</th>
+        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Synced At</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for row in recent_synced %}
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-3">
+          <div class="font-medium text-gray-800">{{ row.prospect_name or row.email or '—' }}</div>
+          <div class="text-xs text-gray-400">{{ row.email }}</div>
+        </td>
+        <td class="px-4 py-3">
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium
+                       {{ event_colors.get(row.event_type, 'bg-gray-100 text-gray-600') }}">
+            {{ row.event_type }}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-xs text-gray-500">
+          {{ row.occurred_at.strftime('%b %d, %H:%M') }}
+        </td>
+        <td class="px-4 py-3 text-xs text-green-600">
+          {{ row.hubspot_synced_at.strftime('%b %d, %H:%M') }}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="4" class="px-4 py-10 text-center text-sm text-gray-400">
+          No events have been synced to HubSpot yet.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

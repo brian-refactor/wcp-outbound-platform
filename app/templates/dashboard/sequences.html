@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Sequences{% endblock %}
+{% block heading %}Sequence Performance{% endblock %}
+
+{% block content %}
+
+{# ── Performance table ── #}
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+  <div class="px-6 py-4 border-b border-gray-100">
+    <h2 class="text-sm font-semibold text-gray-700">By Sequence Type &amp; Track</h2>
+  </div>
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 border-b border-gray-200">
+      <tr>
+        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Sequence</th>
+        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Track</th>
+        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Enrolled</th>
+        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Opened</th>
+        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Clicked</th>
+        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Replied</th>
+        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Bounced</th>
+        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Opted Out</th>
+        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Reply Rate</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for row in sequences %}
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-3 font-mono font-semibold text-gray-800">{{ row.sequence_type }}</td>
+        <td class="px-4 py-3">
+          <span class="px-2 py-0.5 rounded-full text-xs font-medium
+                       {% if row.track == 'high_intent' %}bg-yellow-100 text-yellow-700
+                       {% else %}bg-gray-100 text-gray-600{% endif %}">
+            {{ row.track }}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-right text-gray-800 font-medium">{{ row.enrolled }}</td>
+        <td class="px-4 py-3 text-right text-blue-600">{{ row.opened }}</td>
+        <td class="px-4 py-3 text-right text-purple-600">{{ row.clicked }}</td>
+        <td class="px-4 py-3 text-right text-green-600 font-semibold">{{ row.replied }}</td>
+        <td class="px-4 py-3 text-right text-red-500">{{ row.bounced }}</td>
+        <td class="px-4 py-3 text-right text-orange-500">{{ row.opted_out }}</td>
+        <td class="px-4 py-3 text-right">
+          <span class="font-semibold
+                       {% if row.reply_rate >= 10 %}text-green-600
+                       {% elif row.reply_rate >= 5 %}text-yellow-600
+                       {% else %}text-gray-500{% endif %}">
+            {{ row.reply_rate }}%
+          </span>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="9" class="px-4 py-10 text-center text-gray-400 text-sm">
+          No enrollment data yet.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ── Top Companies ── #}
+{% if top_companies %}
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+  <div class="px-6 py-4 border-b border-gray-100">
+    <h2 class="text-sm font-semibold text-gray-700">Top Companies by Reply</h2>
+  </div>
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 border-b border-gray-200">
+      <tr>
+        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">#</th>
+        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Company</th>
+        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Enrolled</th>
+        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Replied</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for row in top_companies %}
+      {% set i = loop.index0 %}
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-3 text-gray-400 text-xs">{{ i + 1 }}</td>
+        <td class="px-4 py-3 text-gray-800 font-medium">{{ row.company }}</td>
+        <td class="px-4 py-3 text-right text-gray-600">{{ row.enrolled }}</td>
+        <td class="px-4 py-3 text-right">
+          <span class="font-semibold {% if row.replied > 0 %}text-green-600{% else %}text-gray-400{% endif %}">
+            {{ row.replied }}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}
