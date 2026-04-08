@@ -201,13 +201,26 @@ def enroll_prospect(
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
 
+    # Merge prospect record fields into any caller-supplied custom fields.
+    # Prospect data takes precedence so Smartlead templates always have
+    # accurate values regardless of what the caller passes.
+    auto_fields = {k: v for k, v in {
+        "company":                prospect.company,
+        "title":                  prospect.title,
+        "geography":              prospect.geography,
+        "asset_class_preference": prospect.asset_class_preference,
+        "linkedin_url":           prospect.linkedin_url,
+        "phone":                  prospect.phone,
+    }.items() if v}
+    merged_custom_fields = {**(body.custom_fields or {}), **auto_fields}
+
     try:
         result = smartlead.enroll_prospect(
             campaign_id=body.campaign_id,
             email=prospect.email,
             first_name=prospect.first_name,
             last_name=prospect.last_name,
-            custom_fields=body.custom_fields,
+            custom_fields=merged_custom_fields,
         )
     except Exception as e:
         logger.error("Smartlead enrollment failed for %s: %s", prospect.email, e)

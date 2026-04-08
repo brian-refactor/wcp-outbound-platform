@@ -170,6 +170,20 @@ def dashboard_prospects(
 
 VALID_SEQUENCE_TYPES = ["RE_DEAL", "RE_FUND", "PE_DEAL", "PE_FUND"]
 
+
+def _prospect_custom_fields(prospect: Prospect) -> dict:
+    """Build Smartlead custom field payload from a prospect record.
+    Keys match the variable names used in Smartlead email templates."""
+    return {k: v for k, v in {
+        "company":                prospect.company,
+        "title":                  prospect.title,
+        "geography":              prospect.geography,
+        "asset_class_preference": prospect.asset_class_preference,
+        "linkedin_url":           prospect.linkedin_url,
+        "phone":                  prospect.phone,
+    }.items() if v}
+
+
 @router.get("/prospects/new", response_class=HTMLResponse)
 def prospect_new_form(request: Request):
     return templates.TemplateResponse(
@@ -252,6 +266,7 @@ def prospect_new_submit(
                 email=prospect.email,
                 first_name=prospect.first_name,
                 last_name=prospect.last_name,
+                custom_fields=_prospect_custom_fields(prospect),
             )
             enrollment = SequenceEnrollment(
                 prospect_id=prospect.id,
