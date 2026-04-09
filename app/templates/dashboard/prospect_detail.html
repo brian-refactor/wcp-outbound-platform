@@ -40,6 +40,16 @@
 
 {# ── Prospect header card ── #}
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+  <div class="flex justify-between items-start mb-4">
+    <div></div>
+    <form method="post" action="/dashboard/prospects/{{ prospect.id }}/delete"
+          onsubmit="return confirm('Delete {{ prospect.first_name or prospect.email }}? This removes all enrollments and email events and cannot be undone.')">
+      <button type="submit"
+              class="rounded-lg border border-red-200 text-red-600 px-3 py-1.5 text-xs font-medium hover:bg-red-50 transition-colors">
+        Delete Prospect
+      </button>
+    </form>
+  </div>
   <div class="flex flex-wrap gap-6">
     <div>
       <div class="flex items-center gap-3">

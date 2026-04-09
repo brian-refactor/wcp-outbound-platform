@@ -519,6 +519,22 @@ def dashboard_prospect_detail(
 
 
 # ---------------------------------------------------------------------------
+# Delete prospect
+# ---------------------------------------------------------------------------
+
+@router.post("/prospects/{prospect_id}/delete", response_class=HTMLResponse)
+def prospect_delete(prospect_id: str, db: Session = Depends(get_db)):
+    prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
+    if not prospect:
+        return HTMLResponse("<h1>Prospect not found</h1>", status_code=404)
+    db.query(EmailEvent).filter(EmailEvent.prospect_id == prospect.id).delete()
+    db.query(SequenceEnrollment).filter(SequenceEnrollment.prospect_id == prospect.id).delete()
+    db.delete(prospect)
+    db.commit()
+    return RedirectResponse(url="/dashboard/prospects", status_code=303)
+
+
+# ---------------------------------------------------------------------------
 # Sequence performance
 # ---------------------------------------------------------------------------
 
