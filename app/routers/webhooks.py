@@ -29,12 +29,18 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 SMARTLEAD_EVENT_MAP = {
     "EMAIL_SENT": "sent",
     "EMAIL_OPEN": "open",
+    "EMAIL_OPENED": "open",           # alias
     "EMAIL_LINK_CLICKED": "click",
+    "EMAIL_CLICKED": "click",         # alias
+    "EMAIL_LINK_CLICK": "click",      # alias
     "EMAIL_REPLIED": "reply",
+    "EMAIL_REPLY": "reply",           # Smartlead test webhook sends EMAIL_REPLY (not EMAIL_REPLIED)
     "EMAIL_BOUNCED": "bounce",
+    "EMAIL_BOUNCE": "bounce",         # alias
     "LEAD_UNSUBSCRIBED": "unsubscribe",
+    "LEAD_UNSUBSCRIBE": "unsubscribe", # alias
     "LEAD_COMPLETED_SEQUENCE": "complete",
-    "SEQUENCE_COMPLETED": "complete",  # defensive alias — Smartlead event name varies by account
+    "SEQUENCE_COMPLETED": "complete",  # alias
 }
 
 
