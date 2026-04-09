@@ -75,7 +75,7 @@
         </thead>
         <tbody class="divide-y divide-gray-100">
           {% for mb in mailboxes %}
-          {% set email = mb.get('from_email') or '—' %}
+          {% set email = mb.get('from_email') or '-' %}
           {% set warmup = mb.get('warmup_details') or {} %}
           {% set warmup_status = warmup.get('status', '') %}
           {% set warmup_rep = warmup.get('warmup_reputation', '') %}
@@ -91,7 +91,7 @@
             </td>
             <td class="px-4 py-3">
               <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
-                {{ mb.get('type') or '—' }}
+                {{ mb.get('type') or '-' }}
               </span>
             </td>
             <td class="px-4 py-3">
@@ -105,7 +105,7 @@
               {% elif warmup_status %}
               <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">{{ warmup_status }}</span>
               {% else %}
-              <span class="text-xs text-gray-400">—</span>
+              <span class="text-xs text-gray-400">-</span>
               {% endif %}
             </td>
             <td class="px-4 py-3 text-right">
@@ -119,7 +119,7 @@
               </div>
               {% endif %}
             </td>
-            <td class="px-4 py-3 text-right text-gray-600 font-medium">{{ cap if cap else '—' }}</td>
+            <td class="px-4 py-3 text-right text-gray-600 font-medium">{{ cap if cap else '-' }}</td>
             <td class="px-4 py-3">
               <div class="flex items-center gap-2">
                 <span title="SMTP" class="text-xs {% if smtp_ok %}text-green-500{% else %}text-red-400{% endif %}">
@@ -155,7 +155,7 @@
       </div>
       {% else %}
       <div class="px-6 py-10 text-center text-sm text-gray-400">
-        Mailbox data unavailable — see error above.
+        Mailbox data unavailable - see error above.
       </div>
       {% endif %}
     </div>

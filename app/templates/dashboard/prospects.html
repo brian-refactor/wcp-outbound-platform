@@ -96,15 +96,15 @@
           </div>
           <div class="text-xs text-gray-400">{{ p.email }}</div>
         </td>
-        <td class="px-4 py-3 text-gray-600">{{ p.company or '—' }}</td>
-        <td class="px-4 py-3 text-gray-600 font-mono text-xs">{{ p.latest_sequence_type or '—' }}</td>
+        <td class="px-4 py-3 text-gray-600">{{ p.company or '-' }}</td>
+        <td class="px-4 py-3 text-gray-600 font-mono text-xs">{{ p.latest_sequence_type or '-' }}</td>
         <td class="px-4 py-3">
           {% if p.latest_track %}
           <span class="px-2 py-0.5 rounded-full text-xs font-medium
                        {{ track_colors.get(p.latest_track, 'bg-gray-100 text-gray-600') }}">
             {{ p.latest_track }}
           </span>
-          {% else %}—{% endif %}
+          {% else %}-{% endif %}
         </td>
         <td class="px-4 py-3">
           {% if p.latest_status %}
@@ -122,14 +122,14 @@
           {% elif p.hubspot_status == 'pending' %}
           <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Pending</span>
           {% else %}
-          <span class="text-gray-300 text-xs">—</span>
+          <span class="text-gray-300 text-xs">-</span>
           {% endif %}
         </td>
         <td class="px-4 py-3 text-xs text-gray-400">
           {% if p.last_event_at %}
             {{ p.last_event_at.strftime('%b %d, %H:%M') }}
             <span class="ml-1 text-gray-500">{{ p.last_event_type }}</span>
-          {% else %}—{% endif %}
+          {% else %}-{% endif %}
         </td>
       </tr>
       {% else %}

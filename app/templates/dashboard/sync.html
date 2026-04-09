@@ -48,7 +48,7 @@
   </svg>
   <div>
     <div class="text-sm font-semibold text-yellow-800">
-      {{ sync.pending }} event{{ 's' if sync.pending != 1 else '' }} pending — oldest from
+      {{ sync.pending }} event{{ 's' if sync.pending != 1 else '' }} pending - oldest from
       {{ sync.oldest_pending_at.strftime('%b %d, %Y %H:%M UTC') }}
     </div>
     <div class="text-xs text-yellow-600 mt-0.5">
@@ -88,7 +88,7 @@
       {% for row in recent_synced %}
       <tr class="hover:bg-gray-50">
         <td class="px-4 py-3">
-          <div class="font-medium text-gray-800">{{ row.prospect_name or row.email or '—' }}</div>
+          <div class="font-medium text-gray-800">{{ row.prospect_name or row.email or '-' }}</div>
           <div class="text-xs text-gray-400">{{ row.email }}</div>
         </td>
         <td class="px-4 py-3">

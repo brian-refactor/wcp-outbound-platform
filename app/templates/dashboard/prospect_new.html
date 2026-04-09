@@ -83,9 +83,9 @@
         <label class="block text-xs font-medium text-gray-600 mb-1">Asset Class Preference</label>
         <select name="asset_class_preference"
                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">— Not specified —</option>
-          <option value="PE" {% if form.get('asset_class_preference') == 'PE' %}selected{% endif %}>PE — Private Equity</option>
-          <option value="RE" {% if form.get('asset_class_preference') == 'RE' %}selected{% endif %}>RE — Real Estate</option>
+          <option value="">- Not specified -</option>
+          <option value="PE" {% if form.get('asset_class_preference') == 'PE' %}selected{% endif %}>PE - Private Equity</option>
+          <option value="RE" {% if form.get('asset_class_preference') == 'RE' %}selected{% endif %}>RE - Real Estate</option>
           <option value="both" {% if form.get('asset_class_preference') == 'both' %}selected{% endif %}>Both</option>
         </select>
       </div>
@@ -100,7 +100,7 @@
         <label class="block text-xs font-medium text-gray-600 mb-1">Wealth Tier</label>
         <select name="wealth_tier"
                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">— Not specified —</option>
+          <option value="">- Not specified -</option>
           <option value="mass_affluent" {% if form.get('wealth_tier') == 'mass_affluent' %}selected{% endif %}>Mass Affluent ($100K–$1M)</option>
           <option value="HNWI"          {% if form.get('wealth_tier') == 'HNWI'          %}selected{% endif %}>HNWI ($1M–$30M)</option>
           <option value="UHNWI"         {% if form.get('wealth_tier') == 'UHNWI'         %}selected{% endif %}>UHNWI ($30M+)</option>
@@ -111,7 +111,7 @@
         <label class="block text-xs font-medium text-gray-600 mb-1">Investor Type</label>
         <select name="investor_type"
                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">— Not specified —</option>
+          <option value="">- Not specified -</option>
           <option value="individual"    {% if form.get('investor_type') == 'individual'    %}selected{% endif %}>Individual</option>
           <option value="family_office" {% if form.get('investor_type') == 'family_office' %}selected{% endif %}>Family Office</option>
           <option value="RIA"           {% if form.get('investor_type') == 'RIA'           %}selected{% endif %}>RIA</option>
@@ -139,7 +139,7 @@
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
     <div class="flex items-center gap-3 mb-1">
       <h2 class="text-sm font-semibold text-gray-700">Enroll in Sequence</h2>
-      <span class="text-xs text-gray-400 font-normal">optional — leave Campaign ID blank to skip</span>
+      <span class="text-xs text-gray-400 font-normal">optional - leave Campaign ID blank to skip</span>
     </div>
     <p class="text-xs text-gray-400 mb-4">
       If a Campaign ID is provided the prospect will be immediately added to that Smartlead campaign.
@@ -156,7 +156,7 @@
         <label class="block text-xs font-medium text-gray-600 mb-1">Sequence Type</label>
         <select name="sequence_type"
                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">— Select type —</option>
+          <option value="">- Select type -</option>
           {% for st in sequence_types %}
           <option value="{{ st }}" {% if form.get('sequence_type') == st %}selected{% endif %}>{{ st }}</option>
           {% endfor %}
@@ -167,7 +167,7 @@
         <label class="block text-xs font-medium text-gray-600 mb-1">High Intent Campaign ID</label>
         <input type="number" name="high_intent_campaign_id"
                value="{{ form.get('high_intent_campaign_id') or '' }}"
-               placeholder="Smartlead campaign to switch to on 3+ opens/clicks — leave blank if not set up yet"
+               placeholder="Smartlead campaign to switch to on 3+ opens/clicks - leave blank if not set up yet"
                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
       </div>
 

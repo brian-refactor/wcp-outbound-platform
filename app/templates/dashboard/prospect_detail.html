@@ -102,7 +102,7 @@
       </div>
       <div>
         <div class="text-xs text-gray-400 font-medium uppercase tracking-wide">Source</div>
-        <div class="text-gray-800 mt-0.5">{{ prospect.source or '—' }}</div>
+        <div class="text-gray-800 mt-0.5">{{ prospect.source or '-' }}</div>
       </div>
       <div>
         <div class="text-xs text-gray-400 font-medium uppercase tracking-wide">Added</div>
@@ -186,12 +186,12 @@
             </span>
           </td>
           <td class="py-1.5 text-gray-600 truncate max-w-xs">
-            {{ ev.email_subject or '—' }}
+            {{ ev.email_subject or '-' }}
             {% if ev.clicked_url %}
             <span class="text-purple-500 ml-1">→ {{ ev.clicked_url[:60] }}…</span>
             {% endif %}
           </td>
-          <td class="py-1.5 text-gray-400">{{ ev.domain_used or '—' }}</td>
+          <td class="py-1.5 text-gray-400">{{ ev.domain_used or '-' }}</td>
           <td class="py-1.5">
             {% if ev.hubspot_synced_at %}
             <span class="text-green-500" title="Synced {{ ev.hubspot_synced_at }}">✓</span>
