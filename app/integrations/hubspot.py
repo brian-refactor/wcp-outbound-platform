@@ -69,6 +69,46 @@ def upsert_contacts(prospects: list[dict]) -> dict[str, str]:
     }
 
 
+def create_note(
+    hubspot_contact_id: str,
+    note_body: str,
+    occurred_at: "datetime",
+) -> str:
+    """
+    Creates a Note on a HubSpot contact and returns the note id.
+    Raises: httpx.HTTPStatusError on API error
+    """
+    from datetime import datetime
+
+    ts = occurred_at.strftime("%Y-%m-%dT%H:%M:%S.000Z") if hasattr(occurred_at, "strftime") else str(occurred_at)
+
+    payload = {
+        "properties": {
+            "hs_note_body": note_body,
+            "hs_timestamp": ts,
+        },
+        "associations": [
+            {
+                "to": {"id": hubspot_contact_id},
+                "types": [
+                    {
+                        "associationCategory": "HUBSPOT_DEFINED",
+                        "associationTypeId": 202,  # note -> contact
+                    }
+                ],
+            }
+        ],
+    }
+
+    with _client() as client:
+        resp = client.post("/crm/v3/objects/notes", json=payload)
+        resp.raise_for_status()
+
+    note_id = resp.json()["id"]
+    logger.info("Created HubSpot note %s for contact %s", note_id, hubspot_contact_id)
+    return note_id
+
+
 def create_deal(
     hubspot_contact_id: str,
     deal_name: str,
