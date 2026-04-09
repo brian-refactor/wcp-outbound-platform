@@ -155,15 +155,18 @@
 
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">Campaign</label>
-        <select name="campaign_id"
+        <select name="campaign_id" id="campaign_id"
+                onchange="document.getElementById('campaign_name').value = this.options[this.selectedIndex].dataset.name || ''"
                 class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">- None (skip enrollment) -</option>
+          <option value="" data-name="">- None (skip enrollment) -</option>
           {% for c in campaigns %}
-          <option value="{{ c.id }}" {% if form.get('campaign_id')|string == c.id|string %}selected{% endif %}>
+          <option value="{{ c.id }}" data-name="{{ c.name }}"
+                  {% if form.get('campaign_id')|string == c.id|string %}selected{% endif %}>
             {{ c.name }} ({{ c.id }})
           </option>
           {% endfor %}
         </select>
+        <input type="hidden" name="campaign_name" id="campaign_name" value="{{ form.get('campaign_name') or '' }}"/>
       </div>
 
       <div>

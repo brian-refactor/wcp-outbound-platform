@@ -142,6 +142,11 @@ def dashboard_prospects(
              WHERE se.prospect_id = p.id ORDER BY se.enrolled_at DESC LIMIT 1)          AS latest_sequence_type,
             (SELECT se.track FROM sequence_enrollments se
              WHERE se.prospect_id = p.id ORDER BY se.enrolled_at DESC LIMIT 1)          AS latest_track,
+            (SELECT string_agg(
+                COALESCE(se.campaign_name, se.sequence_type) || '|' || se.status,
+                ',' ORDER BY se.enrolled_at DESC
+             ) FROM sequence_enrollments se
+             WHERE se.prospect_id = p.id)                                                AS enrollments_summary,
             (SELECT COUNT(*) FROM sequence_enrollments se
              WHERE se.prospect_id = p.id)                                                AS enrollment_count,
             (SELECT COUNT(*) FROM email_events ee
@@ -280,6 +285,7 @@ def prospect_new_submit(
     investor_type: Optional[str] = Form(None),
     source: Optional[str] = Form("manual"),
     campaign_id: Optional[str] = Form(None),
+    campaign_name: Optional[str] = Form(None),
     sequence_type: Optional[str] = Form(None),
     high_intent_campaign_id: Optional[str] = Form(None),
 ):
@@ -289,7 +295,8 @@ def prospect_new_submit(
         "linkedin_url": linkedin_url, "asset_class_preference": asset_class_preference,
         "geography": geography, "wealth_tier": wealth_tier,
         "investor_type": investor_type, "source": source or "manual",
-        "campaign_id": campaign_id, "sequence_type": sequence_type,
+        "campaign_id": campaign_id, "campaign_name": campaign_name,
+        "sequence_type": sequence_type,
         "high_intent_campaign_id": high_intent_campaign_id,
     }
 
@@ -362,6 +369,7 @@ def prospect_new_submit(
             enrollment = SequenceEnrollment(
                 prospect_id=prospect.id,
                 smartlead_campaign_id=str(campaign_id),
+                campaign_name=(campaign_name or "").strip() or None,
                 high_intent_campaign_id=str(high_intent_campaign_id) if high_intent_campaign_id else None,
                 sequence_type=sequence_type,
             )
