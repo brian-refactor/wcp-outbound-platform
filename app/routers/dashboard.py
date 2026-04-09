@@ -241,10 +241,25 @@ def _prospect_custom_fields(prospect: Prospect) -> dict:
 
 @router.get("/prospects/new", response_class=HTMLResponse)
 def prospect_new_form(request: Request):
+    campaigns = []
+    campaigns_error = None
+    try:
+        campaigns = smartlead.list_campaigns()
+    except Exception as e:
+        campaigns_error = str(e)
+        logger.warning("Could not fetch Smartlead campaigns: %s", e)
+
     return templates.TemplateResponse(
         "dashboard/prospect_new.html",
-        {"request": request, "active_page": "prospects",
-         "sequence_types": VALID_SEQUENCE_TYPES, "error": None, "form": {}},
+        {
+            "request": request,
+            "active_page": "prospects",
+            "sequence_types": VALID_SEQUENCE_TYPES,
+            "campaigns": campaigns,
+            "campaigns_error": campaigns_error,
+            "error": None,
+            "form": {},
+        },
     )
 
 
@@ -278,11 +293,24 @@ def prospect_new_submit(
         "high_intent_campaign_id": high_intent_campaign_id,
     }
 
+    campaigns = []
+    try:
+        campaigns = smartlead.list_campaigns()
+    except Exception:
+        pass
+
     def render_error(msg):
         return templates.TemplateResponse(
             "dashboard/prospect_new.html",
-            {"request": request, "active_page": "prospects",
-             "sequence_types": VALID_SEQUENCE_TYPES, "error": msg, "form": form_data},
+            {
+                "request": request,
+                "active_page": "prospects",
+                "sequence_types": VALID_SEQUENCE_TYPES,
+                "campaigns": campaigns,
+                "campaigns_error": None,
+                "error": msg,
+                "form": form_data,
+            },
             status_code=422,
         )
 

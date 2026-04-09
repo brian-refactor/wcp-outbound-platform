@@ -139,19 +139,33 @@
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
     <div class="flex items-center gap-3 mb-1">
       <h2 class="text-sm font-semibold text-gray-700">Enroll in Sequence</h2>
-      <span class="text-xs text-gray-400 font-normal">optional - leave Campaign ID blank to skip</span>
+      <span class="text-xs text-gray-400 font-normal">optional - leave campaign blank to skip</span>
     </div>
     <p class="text-xs text-gray-400 mb-4">
-      If a Campaign ID is provided the prospect will be immediately added to that Smartlead campaign.
+      Select a Smartlead campaign to immediately enroll this prospect.
     </p>
+
+    {% if campaigns_error %}
+    <div class="mb-4 rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3 text-xs text-yellow-800">
+      Could not load campaigns from Smartlead: {{ campaigns_error }}
+    </div>
+    {% endif %}
+
     <div class="grid grid-cols-2 gap-4">
 
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Smartlead Campaign ID</label>
-        <input type="number" name="campaign_id" value="{{ form.get('campaign_id') or '' }}"
-               placeholder="e.g. 123456"
-               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Campaign</label>
+        <select name="campaign_id"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">- None (skip enrollment) -</option>
+          {% for c in campaigns %}
+          <option value="{{ c.id }}" {% if form.get('campaign_id')|string == c.id|string %}selected{% endif %}>
+            {{ c.name }} ({{ c.id }})
+          </option>
+          {% endfor %}
+        </select>
       </div>
+
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">Sequence Type</label>
         <select name="sequence_type"
@@ -164,11 +178,17 @@
       </div>
 
       <div class="col-span-2">
-        <label class="block text-xs font-medium text-gray-600 mb-1">High Intent Campaign ID</label>
-        <input type="number" name="high_intent_campaign_id"
-               value="{{ form.get('high_intent_campaign_id') or '' }}"
-               placeholder="Smartlead campaign to switch to on 3+ opens/clicks - leave blank if not set up yet"
-               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+        <label class="block text-xs font-medium text-gray-600 mb-1">High Intent Campaign</label>
+        <select name="high_intent_campaign_id"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">- None -</option>
+          {% for c in campaigns %}
+          <option value="{{ c.id }}" {% if form.get('high_intent_campaign_id')|string == c.id|string %}selected{% endif %}>
+            {{ c.name }} ({{ c.id }})
+          </option>
+          {% endfor %}
+        </select>
+        <p class="mt-1 text-xs text-gray-400">Campaign to switch to when a prospect shows high intent (3+ opens/clicks). Leave blank if not set up yet.</p>
       </div>
 
     </div>

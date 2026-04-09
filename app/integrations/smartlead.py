@@ -67,6 +67,17 @@ def get_campaign_details(campaign_id: int) -> dict:
         return response.json()
 
 
+def list_campaigns() -> list[dict]:
+    """
+    Fetch all campaigns from Smartlead.
+    Returns a list of dicts with at minimum 'id' and 'name'.
+    """
+    with _client() as client:
+        response = client.get("/campaigns")
+        response.raise_for_status()
+        return response.json()
+
+
 def list_email_accounts() -> list[dict]:
     """
     Fetch all connected email accounts and their warm-up status.
