@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     # API authentication
     api_key: str = ""  # X-API-Key header value; empty string disables auth in dev
 
+    # Dashboard login
+    dashboard_username: str = "admin"
+    dashboard_password: str = ""        # required in production; empty disables auth in dev
+    session_secret: str = "dev-secret-change-in-production"  # signs session cookie
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

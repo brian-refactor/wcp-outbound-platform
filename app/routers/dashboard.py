@@ -11,6 +11,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
+
+from app.config import settings
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -33,8 +35,45 @@ from app.routers.stats import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+auth_router = APIRouter(tags=["auth"])
 templates = Jinja2Templates(directory="app/templates")
 templates.env.globals["enumerate"] = enumerate
+
+
+# ---------------------------------------------------------------------------
+# Login / Logout
+# ---------------------------------------------------------------------------
+
+@auth_router.get("/login", response_class=HTMLResponse)
+def login_page(request: Request):
+    if request.session.get("authenticated"):
+        return RedirectResponse(url="/dashboard", status_code=302)
+    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+
+
+@auth_router.post("/login", response_class=HTMLResponse)
+def login_submit(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+):
+    if (
+        username == settings.dashboard_username
+        and password == settings.dashboard_password
+    ):
+        request.session["authenticated"] = True
+        return RedirectResponse(url="/dashboard", status_code=303)
+    return templates.TemplateResponse(
+        "login.html",
+        {"request": request, "error": "Invalid username or password."},
+        status_code=401,
+    )
+
+
+@auth_router.get("/logout")
+def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/login", status_code=302)
 
 PAGE_SIZE = 25
 

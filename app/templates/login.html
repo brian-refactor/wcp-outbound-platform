@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In - WCP Outbound</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 min-h-screen flex items-center justify-center">
+
+  <div class="w-full max-w-sm">
+    <!-- Logo / Header -->
+    <div class="text-center mb-8">
+      <div class="text-white font-bold text-xl">WCP Outbound</div>
+      <div class="text-gray-500 text-sm mt-1">Platform Dashboard</div>
+    </div>
+
+    <!-- Card -->
+    <div class="bg-gray-800 rounded-xl shadow-xl px-8 py-8">
+      <h1 class="text-white text-lg font-semibold mb-6">Sign in</h1>
+
+      {% if error %}
+      <div class="mb-5 px-4 py-3 rounded-lg bg-red-900/40 border border-red-700 text-red-300 text-sm">
+        {{ error }}
+      </div>
+      {% endif %}
+
+      <form method="post" action="/login" class="space-y-5">
+        <div>
+          <label class="block text-gray-400 text-xs font-medium mb-1.5" for="username">
+            Username
+          </label>
+          <input
+            id="username"
+            name="username"
+            type="text"
+            autocomplete="username"
+            required
+            class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg
+                   px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                   placeholder-gray-500"
+            placeholder="admin"
+          />
+        </div>
+
+        <div>
+          <label class="block text-gray-400 text-xs font-medium mb-1.5" for="password">
+            Password
+          </label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+            class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg
+                   px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                   placeholder-gray-500"
+            placeholder="••••••••"
+          />
+        </div>
+
+        <button
+          type="submit"
+          class="w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium
+                 py-2.5 rounded-lg transition-colors duration-150"
+        >
+          Sign in
+        </button>
+      </form>
+    </div>
+  </div>
+
+</body>
+</html>
