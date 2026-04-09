@@ -57,13 +57,12 @@ def login_submit(
     username: str = Form(...),
     password: str = Form(...),
 ):
-    logger.info(
-        "Login attempt: submitted_user=%r (len=%d), expected_user=%r (len=%d), "
-        "password_match=%s, expected_password_len=%d",
-        username, len(username),
-        settings.dashboard_username, len(settings.dashboard_username),
-        password == settings.dashboard_password,
-        len(settings.dashboard_password),
+    print(
+        f"LOGIN DEBUG: submitted_user={username!r} (len={len(username)}), "
+        f"expected_user={settings.dashboard_username!r} (len={len(settings.dashboard_username)}), "
+        f"password_match={password == settings.dashboard_password}, "
+        f"expected_password_len={len(settings.dashboard_password)}",
+        flush=True,
     )
     if (
         username == settings.dashboard_username
