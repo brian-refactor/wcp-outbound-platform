@@ -44,7 +44,7 @@ def enroll_prospect(
                 "email": email,
                 "first_name": first_name or "",
                 "last_name": last_name or "",
-                **(custom_fields or {}),
+                **({"custom_fields": custom_fields} if custom_fields else {}),
             }
         ]
     }
