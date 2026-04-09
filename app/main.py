@@ -13,11 +13,6 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Session middleware must be added first (outermost) so the session is
-# populated before the auth middleware runs.
-app.add_middleware(SessionMiddleware, secret_key=settings.session_secret, https_only=False)
-
-
 class DashboardAuthMiddleware(BaseHTTPMiddleware):
     """Redirect unauthenticated requests to /login for all /dashboard/* paths."""
 
@@ -32,7 +27,11 @@ class DashboardAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+# add_middleware stacks in reverse: last added = outermost = runs first.
+# SessionMiddleware must be outermost so the session is ready when
+# DashboardAuthMiddleware runs.
 app.add_middleware(DashboardAuthMiddleware)
+app.add_middleware(SessionMiddleware, secret_key=settings.session_secret, https_only=False)
 
 app.include_router(dashboard.auth_router)
 app.include_router(prospects.router)
