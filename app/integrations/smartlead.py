@@ -51,6 +51,11 @@ def enroll_prospect(
 
     with _client() as client:
         response = client.post(f"/campaigns/{campaign_id}/leads", json=payload)
+        if not response.is_success:
+            logger.error(
+                "Smartlead enrollment failed for %s in campaign %s: %s %s — body: %s",
+                email, campaign_id, response.status_code, response.reason_phrase, response.text,
+            )
         response.raise_for_status()
         result = response.json()
         logger.info(
