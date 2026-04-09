@@ -13,6 +13,8 @@ if config.config_file_name is not None:
 # Pull DATABASE_URL from environment so Railway and local .env both work
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
+    # Railway sets postgresql://, psycopg3 requires postgresql+psycopg://
+    database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
     config.set_main_option("sqlalchemy.url", database_url)
 
 # Import all models so Alembic autogenerate can see them
