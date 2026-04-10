@@ -4,26 +4,56 @@
 
 {% block content %}
 
-{# ── KPI Cards ── #}
+{# ── Top KPI row ── #}
+<div class="grid grid-cols-3 gap-4 mb-4">
+  <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+    <div class="text-3xl font-bold text-gray-900">{{ stats.total_prospects }}</div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Total Prospects</div>
+  </div>
+  <div class="rounded-xl border border-gray-200 bg-blue-50 px-5 py-4 shadow-sm">
+    <div class="text-3xl font-bold text-blue-600">{{ stats.active_enrollments }}</div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Active Enrollments</div>
+  </div>
+  <div class="rounded-xl border border-gray-200 bg-indigo-50 px-5 py-4 shadow-sm">
+    <div class="text-3xl font-bold text-indigo-600">{{ stats.total_sent }}</div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Emails Sent</div>
+  </div>
+</div>
+
+{# ── Engagement rates row ── #}
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
 
-  {% set cards = [
-    ("Total Prospects",    stats.total_prospects,    "text-gray-900",  "bg-white"),
-    ("Active Enrollments", stats.active_enrollments, "text-blue-600",  "bg-blue-50"),
-    ("Emails Sent",        stats.total_sent,         "text-indigo-600","bg-indigo-50"),
-    ("Replied",            stats.total_replied,      "text-green-600", "bg-green-50"),
-    ("HubSpot Deals",      stats.hubspot_deals,      "text-orange-600","bg-orange-50"),
-    ("Completed",          stats.total_completed,    "text-teal-600",  "bg-teal-50"),
-    ("Bounced",            stats.total_bounced,      "text-red-600",   "bg-red-50"),
-    ("HubSpot Pending",    stats.hubspot_pending,    "text-purple-600","bg-purple-50"),
-  ] %}
-
-  {% for label, value, text_class, bg_class in cards %}
-  <div class="rounded-xl border border-gray-200 {{ bg_class }} px-5 py-4 shadow-sm">
-    <div class="text-3xl font-bold {{ text_class }}">{{ value }}</div>
-    <div class="text-xs font-medium text-gray-500 mt-1">{{ label }}</div>
+  <div class="rounded-xl border border-gray-200 bg-sky-50 px-5 py-4 shadow-sm">
+    <div class="flex items-end gap-2">
+      <div class="text-3xl font-bold text-sky-600">{{ stats.total_opened }}</div>
+      <div class="text-sm font-semibold text-sky-400 mb-1">{{ stats.open_rate }}%</div>
+    </div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Emails Opened</div>
   </div>
-  {% endfor %}
+
+  <div class="rounded-xl border border-gray-200 bg-green-50 px-5 py-4 shadow-sm">
+    <div class="flex items-end gap-2">
+      <div class="text-3xl font-bold text-green-600">{{ stats.total_replied }}</div>
+      <div class="text-sm font-semibold text-green-400 mb-1">{{ stats.reply_rate }}%</div>
+    </div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Replied</div>
+  </div>
+
+  <div class="rounded-xl border border-gray-200 bg-red-50 px-5 py-4 shadow-sm">
+    <div class="flex items-end gap-2">
+      <div class="text-3xl font-bold text-red-600">{{ stats.total_bounced }}</div>
+      <div class="text-sm font-semibold text-red-400 mb-1">{{ stats.bounce_rate }}%</div>
+    </div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Bounced</div>
+  </div>
+
+  <div class="rounded-xl border border-gray-200 bg-orange-50 px-5 py-4 shadow-sm">
+    <div class="flex items-end gap-2">
+      <div class="text-3xl font-bold text-orange-600">{{ stats.total_spam }}</div>
+      <div class="text-sm font-semibold text-orange-400 mb-1">{{ stats.spam_rate }}%</div>
+    </div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Marked as Spam</div>
+  </div>
 
 </div>
 

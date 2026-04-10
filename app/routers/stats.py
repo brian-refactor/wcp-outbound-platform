@@ -23,13 +23,20 @@ class OverviewStats(BaseModel):
     total_prospects: int
     active_enrollments: int
     total_sent: int
+    total_opened: int
+    total_clicked: int
     total_replied: int
     total_bounced: int
+    total_spam: int
     total_opted_out: int
     total_completed: int
     hubspot_deals: int
     hubspot_pending: int
     high_intent_upgrades: int
+    open_rate: float
+    reply_rate: float
+    bounce_rate: float
+    spam_rate: float
 
 
 class SequenceTypeRow(BaseModel):
@@ -94,6 +101,16 @@ def overview_stats(db: Session = Depends(get_db)):
         .filter(EmailEvent.event_type == "sent")
         .scalar() or 0
     )
+    total_opened = (
+        db.query(func.count(func.distinct(EmailEvent.prospect_id)))
+        .filter(EmailEvent.event_type == "open")
+        .scalar() or 0
+    )
+    total_clicked = (
+        db.query(func.count(func.distinct(EmailEvent.prospect_id)))
+        .filter(EmailEvent.event_type == "click")
+        .scalar() or 0
+    )
     total_replied = (
         db.query(func.count(func.distinct(EmailEvent.prospect_id)))
         .filter(EmailEvent.event_type == "reply")
@@ -102,6 +119,11 @@ def overview_stats(db: Session = Depends(get_db)):
     total_bounced = (
         db.query(func.count(SequenceEnrollment.id))
         .filter(SequenceEnrollment.status == "bounced")
+        .scalar() or 0
+    )
+    total_spam = (
+        db.query(func.count(func.distinct(EmailEvent.prospect_id)))
+        .filter(EmailEvent.event_type == "spam")
         .scalar() or 0
     )
     total_opted_out = (
@@ -136,17 +158,27 @@ def overview_stats(db: Session = Depends(get_db)):
         .scalar() or 0
     )
 
+    def rate(n: int) -> float:
+        return round(n / total_sent * 100, 1) if total_sent > 0 else 0.0
+
     return OverviewStats(
         total_prospects=total_prospects,
         active_enrollments=active_enrollments,
         total_sent=total_sent,
+        total_opened=total_opened,
+        total_clicked=total_clicked,
         total_replied=total_replied,
         total_bounced=total_bounced,
+        total_spam=total_spam,
         total_opted_out=total_opted_out,
         total_completed=total_completed,
         hubspot_deals=hubspot_deals,
         hubspot_pending=hubspot_pending,
         high_intent_upgrades=high_intent_upgrades,
+        open_rate=rate(total_opened),
+        reply_rate=rate(total_replied),
+        bounce_rate=rate(total_bounced),
+        spam_rate=rate(total_spam),
     )
 
 
