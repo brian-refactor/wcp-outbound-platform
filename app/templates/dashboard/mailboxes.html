@@ -184,7 +184,7 @@
           </div>
           {% if row.last_sent_at %}
           <div class="text-xs text-gray-400 mt-1">
-            Last: {{ row.last_sent_at.strftime('%b %d, %H:%M') }}
+            Last: {{ row.last_sent_at | to_et('%b %d, %H:%M') }}
           </div>
           {% endif %}
         </div>

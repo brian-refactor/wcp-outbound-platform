@@ -29,7 +29,7 @@
   <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
     <div class="text-sm font-bold text-gray-800">
       {% if sync.last_synced_at %}
-        {{ sync.last_synced_at.strftime('%b %d, %H:%M') }}
+        {{ sync.last_synced_at | to_et('%b %d, %H:%M') }}
       {% else %}
         Never
       {% endif %}
@@ -49,7 +49,7 @@
   <div>
     <div class="text-sm font-semibold text-yellow-800">
       {{ sync.pending }} event{{ 's' if sync.pending != 1 else '' }} pending - oldest from
-      {{ sync.oldest_pending_at.strftime('%b %d, %Y %H:%M UTC') }}
+      {{ sync.oldest_pending_at | to_et('%b %d, %Y %H:%M ET') }}
     </div>
     <div class="text-xs text-yellow-600 mt-0.5">
       The Celery worker runs sync every 5 minutes. If this backlog is growing, check that the worker is running.
@@ -98,10 +98,10 @@
           </span>
         </td>
         <td class="px-4 py-3 text-xs text-gray-500">
-          {{ row.occurred_at.strftime('%b %d, %H:%M') }}
+          {{ row.occurred_at | to_et('%b %d, %H:%M') }}
         </td>
         <td class="px-4 py-3 text-xs text-green-600">
-          {{ row.hubspot_synced_at.strftime('%b %d, %H:%M') }}
+          {{ row.hubspot_synced_at | to_et('%b %d, %H:%M') }}
         </td>
       </tr>
       {% else %}

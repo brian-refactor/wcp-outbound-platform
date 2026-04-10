@@ -135,7 +135,7 @@
         </td>
         <td class="px-4 py-3 text-xs text-gray-400">
           {% if p.last_event_at %}
-            {{ p.last_event_at.strftime('%b %d, %H:%M') }}
+            {{ p.last_event_at | to_et('%b %d, %H:%M') }}
             <span class="ml-1 text-gray-500">{{ p.last_event_type }}</span>
           {% else %}-{% endif %}
         </td>

@@ -116,7 +116,7 @@
       </div>
       <div>
         <div class="text-xs text-gray-400 font-medium uppercase tracking-wide">Added</div>
-        <div class="text-gray-800 mt-0.5">{{ prospect.created_at.strftime('%b %d, %Y') }}</div>
+        <div class="text-gray-800 mt-0.5">{{ prospect.created_at | to_et('%b %d, %Y') }}</div>
       </div>
     </div>
   </div>
@@ -153,20 +153,20 @@
     </span>
     {% endif %}
     <div class="ml-auto flex flex-wrap gap-6 text-xs text-gray-500">
-      <span>Enrolled {{ enrollment.enrolled_at.strftime('%b %d, %Y %H:%M') }}</span>
+      <span>Enrolled {{ enrollment.enrolled_at | to_et('%b %d, %Y %H:%M') }}</span>
       {% if enrollment.high_intent_switched_at %}
       <span class="text-yellow-600">
-        High Intent switch {{ enrollment.high_intent_switched_at.strftime('%b %d %H:%M') }}
+        High Intent switch {{ enrollment.high_intent_switched_at | to_et('%b %d %H:%M') }}
       </span>
       {% endif %}
       {% if enrollment.completed_at %}
       <span class="text-green-600">
-        Completed {{ enrollment.completed_at.strftime('%b %d, %Y %H:%M') }}
+        Completed {{ enrollment.completed_at | to_et('%b %d, %Y %H:%M') }}
       </span>
       {% endif %}
       {% if enrollment.opted_out_at %}
       <span class="text-orange-600">
-        Opted out {{ enrollment.opted_out_at.strftime('%b %d, %Y %H:%M') }}
+        Opted out {{ enrollment.opted_out_at | to_et('%b %d, %Y %H:%M') }}
       </span>
       {% endif %}
     </div>
@@ -188,7 +188,7 @@
       <tbody class="divide-y divide-gray-50">
         {% for ev in enr_events %}
         <tr>
-          <td class="py-1.5 text-gray-400">{{ ev.occurred_at.strftime('%b %d %H:%M') }}</td>
+          <td class="py-1.5 text-gray-400">{{ ev.occurred_at | to_et('%b %d %H:%M') }}</td>
           <td class="py-1.5">
             <span class="px-1.5 py-0.5 rounded text-xs font-medium
                          {{ event_colors.get(ev.event_type, 'bg-gray-100 text-gray-600') }}">

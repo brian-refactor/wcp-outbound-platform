@@ -40,6 +40,21 @@ templates = Jinja2Templates(directory="app/templates")
 templates.env.globals["enumerate"] = enumerate
 
 
+def _to_et(dt, fmt="%b %d, %H:%M"):
+    """Convert a UTC datetime to US/Eastern and format it."""
+    from zoneinfo import ZoneInfo
+    if dt is None:
+        return ""
+    eastern = ZoneInfo("America/New_York")
+    if dt.tzinfo is None:
+        from datetime import timezone
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(eastern).strftime(fmt)
+
+
+templates.env.filters["to_et"] = _to_et
+
+
 # ---------------------------------------------------------------------------
 # Login / Logout
 # ---------------------------------------------------------------------------
