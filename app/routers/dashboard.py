@@ -100,9 +100,15 @@ PAGE_SIZE = 25
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 def dashboard_overview(request: Request, db: Session = Depends(get_db)):
+    from app.integrations.zerobounce import get_credits
+    from app.models.prospect import Prospect as ProspectModel
     stats = overview_stats(db=db)
     seq_by_type = sequences_by_type(db=db)
     events = recent_events(limit=20, db=db)
+    zb_credits = get_credits()
+    zb_used = db.query(func.count(ProspectModel.id)).filter(
+        ProspectModel.email_validated_at.is_not(None)
+    ).scalar() or 0
     return templates.TemplateResponse(
         "dashboard/overview.html",
         {
@@ -110,6 +116,8 @@ def dashboard_overview(request: Request, db: Session = Depends(get_db)):
             "stats": stats,
             "sequences": seq_by_type,
             "events": events,
+            "zb_credits": zb_credits,
+            "zb_used": zb_used,
             "active_page": "overview",
         },
     )
