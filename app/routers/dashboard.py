@@ -291,6 +291,13 @@ def prospect_bulk_enroll(
     failed = []
 
     for prospect in prospects:
+        if prospect.email_validation_status and prospect.email_validation_status != "valid":
+            logger.warning(
+                "Bulk enroll skipped %s — email status: %s",
+                prospect.email, prospect.email_validation_status,
+            )
+            failed.append(f"{prospect.email} (email {prospect.email_validation_status})")
+            continue
         try:
             smartlead.enroll_prospect(
                 campaign_id=int(campaign_id),
@@ -454,6 +461,11 @@ def prospect_new_submit(
     if campaign_id and campaign_id.strip() and sequence_type:
         if sequence_type not in VALID_SEQUENCE_TYPES:
             return render_error(f"Invalid sequence type: {sequence_type}")
+        if prospect.email_validation_status and prospect.email_validation_status != "valid":
+            return render_error(
+                f"Cannot enroll — email validation status is '{prospect.email_validation_status}'. "
+                "Only prospects with a Valid email can be enrolled."
+            )
         try:
             smartlead.enroll_prospect(
                 campaign_id=int(campaign_id),
