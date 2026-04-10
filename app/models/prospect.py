@@ -41,6 +41,11 @@ class Prospect(Base):
         String(20), default="unverified"
     )  # unverified | pending | verified | failed
 
+    # Email validation (ZeroBounce)
+    # status: valid | invalid | catch-all | unknown | spamtrap | abuse | do_not_mail | disposable
+    email_validation_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    email_validated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

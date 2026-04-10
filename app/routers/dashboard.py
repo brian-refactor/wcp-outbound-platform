@@ -140,6 +140,7 @@ def dashboard_prospects(
     investor_type: Optional[str] = Query(None),
     wealth_tier: Optional[str] = Query(None),
     enrolled: Optional[str] = Query(None),  # "yes" | "no"
+    email_validation: Optional[str] = Query(None),  # valid | invalid | catch-all | unknown | none
     page: int = Query(1, ge=1),
     db: Session = Depends(get_db),
 ):
@@ -173,6 +174,7 @@ def dashboard_prospects(
              WHERE ee.prospect_id = p.id ORDER BY ee.occurred_at DESC LIMIT 1)          AS last_event_type,
             (SELECT ee.occurred_at FROM email_events ee
              WHERE ee.prospect_id = p.id ORDER BY ee.occurred_at DESC LIMIT 1)          AS last_event_at,
+            p.email_validation_status,
             -- HubSpot status: deal > contact > pending > none
             CASE
                 WHEN EXISTS (SELECT 1 FROM email_events ee
@@ -225,6 +227,12 @@ def dashboard_prospects(
         base_query += " AND EXISTS (SELECT 1 FROM sequence_enrollments se2 WHERE se2.prospect_id = p.id)"
     elif enrolled == "no":
         base_query += " AND NOT EXISTS (SELECT 1 FROM sequence_enrollments se2 WHERE se2.prospect_id = p.id)"
+
+    if email_validation == "none":
+        base_query += " AND p.email_validation_status IS NULL"
+    elif email_validation:
+        base_query += " AND p.email_validation_status = :email_validation"
+        params["email_validation"] = email_validation
 
     count_sql = f"SELECT COUNT(*) FROM ({base_query}) AS sub"
     total = db.execute(text(count_sql), params).scalar() or 0

@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     hubspot_deal_pipeline_id: str = "default"       # WCP Deals pipeline
     hubspot_deal_stage_id: str = "1114790192"       # Prospect Outreach stage
 
+    # ZeroBounce
+    zerobounce_api_key: str = ""  # from zerobounce.net account
+
     # API authentication
     api_key: str = ""  # X-API-Key header value; empty string disables auth in dev
 

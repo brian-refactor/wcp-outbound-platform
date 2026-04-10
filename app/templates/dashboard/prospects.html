@@ -74,6 +74,15 @@
     <option value="pension"       {% if investor_type_filter == 'pension'       %}selected{% endif %}>Pension</option>
     <option value="other"         {% if investor_type_filter == 'other'         %}selected{% endif %}>Other</option>
   </select>
+  <select name="email_validation"
+          class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <option value="">All email statuses</option>
+    <option value="valid"    {% if request.query_params.get('email_validation') == 'valid'    %}selected{% endif %}>Valid</option>
+    <option value="invalid"  {% if request.query_params.get('email_validation') == 'invalid'  %}selected{% endif %}>Invalid</option>
+    <option value="catch-all"{% if request.query_params.get('email_validation') == 'catch-all'%}selected{% endif %}>Catch-All</option>
+    <option value="unknown"  {% if request.query_params.get('email_validation') == 'unknown'  %}selected{% endif %}>Unknown</option>
+    <option value="none"     {% if request.query_params.get('email_validation') == 'none'     %}selected{% endif %}>Not Validated</option>
+  </select>
   <select name="wealth_tier"
           class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
     <option value="" {% if not wealth_tier_filter %}selected{% endif %}>All wealth tiers</option>
@@ -128,6 +137,7 @@
           <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Company</th>
           <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Type / Tier</th>
           <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Campaigns</th>
+          <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Email</th>
           <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">HubSpot</th>
           <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Last Event</th>
         </tr>
@@ -167,6 +177,19 @@
               </div>
             {% else %}
               <span class="text-gray-400 text-xs">-</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 cursor-pointer" onclick="window.location='/dashboard/prospects/{{ p.id }}'">
+            {% if p.email_validation_status == 'valid' %}
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Valid</span>
+            {% elif p.email_validation_status == 'invalid' %}
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Invalid</span>
+            {% elif p.email_validation_status == 'catch-all' %}
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Catch-All</span>
+            {% elif p.email_validation_status == 'unknown' %}
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Unknown</span>
+            {% else %}
+            <span class="text-gray-300 text-xs">—</span>
             {% endif %}
           </td>
           <td class="px-4 py-3 cursor-pointer" onclick="window.location='/dashboard/prospects/{{ p.id }}'">

@@ -60,6 +60,17 @@
         {% else %}
         <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">Unverified</span>
         {% endif %}
+        {% if prospect.email_validation_status == 'valid' %}
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Email Valid</span>
+        {% elif prospect.email_validation_status == 'invalid' %}
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">Email Invalid</span>
+        {% elif prospect.email_validation_status == 'catch-all' %}
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">Catch-All</span>
+        {% elif prospect.email_validation_status == 'unknown' %}
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">Email Unknown</span>
+        {% else %}
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-400">Not Validated</span>
+        {% endif %}
       </div>
       <div class="text-sm text-gray-500 mt-0.5">{{ prospect.email }}</div>
       {% if prospect.title or prospect.company %}

@@ -19,7 +19,7 @@ celery_app = Celery(
     "wcp_outbound",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["app.tasks.high_intent", "app.tasks.hubspot_sync"],
+    include=["app.tasks.high_intent", "app.tasks.hubspot_sync", "app.tasks.email_validation"],
 )
 
 celery_app.conf.update(
@@ -41,6 +41,10 @@ celery_app.conf.update(
         "sync-to-hubspot": {
             "task": "app.tasks.hubspot_sync.sync_to_hubspot",
             "schedule": crontab(minute="*/5"),  # every 5 minutes
+        },
+        "validate-emails": {
+            "task": "app.tasks.email_validation.validate_emails",
+            "schedule": crontab(minute="*/30"),  # every 30 minutes
         },
     },
 )
