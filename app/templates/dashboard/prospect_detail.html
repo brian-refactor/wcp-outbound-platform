@@ -68,13 +68,19 @@
       </div>
       {% endif %}
     </div>
-    <form method="post" action="/dashboard/prospects/{{ prospect.id }}/delete"
-          onsubmit="return confirm('Delete {{ prospect.first_name or prospect.email }}? This removes all enrollments and email events and cannot be undone.')">
-      <button type="submit"
-              class="rounded-lg border border-red-200 text-red-600 px-3 py-1.5 text-xs font-medium hover:bg-red-50 transition-colors">
-        Delete Prospect
-      </button>
-    </form>
+    <div class="flex gap-2">
+      <a href="/dashboard/prospects/{{ prospect.id }}/edit"
+         class="rounded-lg border border-gray-300 text-gray-600 px-3 py-1.5 text-xs font-medium hover:bg-gray-50 transition-colors">
+        Edit
+      </a>
+      <form method="post" action="/dashboard/prospects/{{ prospect.id }}/delete"
+            onsubmit="return confirm('Delete {{ prospect.first_name or prospect.email }}? This removes all enrollments and email events and cannot be undone.')">
+        <button type="submit"
+                class="rounded-lg border border-red-200 text-red-600 px-3 py-1.5 text-xs font-medium hover:bg-red-50 transition-colors">
+          Delete
+        </button>
+      </form>
+    </div>
   </div>
 
   {# Two-column detail grid #}

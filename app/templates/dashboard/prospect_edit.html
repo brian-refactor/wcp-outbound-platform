@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ prospect.first_name or prospect.email }}{% endblock %}
+{% block heading %}
+  <div class="flex items-center gap-2">
+    <a href="/dashboard/prospects" class="text-gray-400 hover:text-gray-700 transition-colors">Prospects</a>
+    <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+    </svg>
+    <a href="/dashboard/prospects/{{ prospect.id }}" class="text-gray-400 hover:text-gray-700 transition-colors">
+      {{ prospect.first_name or '' }} {{ prospect.last_name or prospect.email }}
+    </a>
+    <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+    </svg>
+    <span>Edit</span>
+  </div>
+{% endblock %}
+
+{% block content %}
+
+{% if error %}
+<div class="rounded-xl border border-red-200 bg-red-50 px-5 py-4 mb-6 flex items-start gap-3">
+  <svg class="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+  <div class="text-sm font-medium text-red-800">{{ error }}</div>
+</div>
+{% endif %}
+
+<form method="post" action="/dashboard/prospects/{{ prospect.id }}/edit" class="max-w-2xl space-y-6">
+
+  {# ── Contact Info ── #}
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <h2 class="text-sm font-semibold text-gray-700 mb-4">Contact Information</h2>
+    <div class="grid grid-cols-2 gap-4">
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">First Name</label>
+        <input type="text" name="first_name" value="{{ prospect.first_name or '' }}"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Last Name</label>
+        <input type="text" name="last_name" value="{{ prospect.last_name or '' }}"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+
+      <div class="col-span-2">
+        <label class="block text-xs font-medium text-gray-600 mb-1">
+          Email <span class="text-red-500">*</span>
+        </label>
+        <input type="email" name="email" value="{{ prospect.email }}" required
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Company</label>
+        <input type="text" name="company" value="{{ prospect.company or '' }}"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Title</label>
+        <input type="text" name="title" value="{{ prospect.title or '' }}"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+        <input type="text" name="phone" value="{{ prospect.phone or '' }}"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">LinkedIn URL</label>
+        <input type="url" name="linkedin_url" value="{{ prospect.linkedin_url or '' }}"
+               placeholder="https://linkedin.com/in/..."
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+
+      <div class="col-span-2">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Geography</label>
+        <input type="text" name="geography" value="{{ prospect.geography or '' }}"
+               placeholder="e.g. Southeast US"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+
+    </div>
+  </div>
+
+  {# ── Investor Profile ── #}
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <h2 class="text-sm font-semibold text-gray-700 mb-4">Investor Profile</h2>
+    <div class="grid grid-cols-2 gap-4">
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Investor Type</label>
+        <select name="investor_type"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">- Not specified -</option>
+          <option value="individual"    {% if prospect.investor_type == 'individual'    %}selected{% endif %}>Individual</option>
+          <option value="family_office" {% if prospect.investor_type == 'family_office' %}selected{% endif %}>Family Office</option>
+          <option value="RIA"           {% if prospect.investor_type == 'RIA'           %}selected{% endif %}>RIA</option>
+          <option value="broker_dealer" {% if prospect.investor_type == 'broker_dealer' %}selected{% endif %}>Broker-Dealer</option>
+          <option value="endowment"     {% if prospect.investor_type == 'endowment'     %}selected{% endif %}>Endowment</option>
+          <option value="pension"       {% if prospect.investor_type == 'pension'       %}selected{% endif %}>Pension</option>
+          <option value="other"         {% if prospect.investor_type == 'other'         %}selected{% endif %}>Other</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Wealth Tier</label>
+        <select name="wealth_tier"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">- Not specified -</option>
+          <option value="mass_affluent" {% if prospect.wealth_tier == 'mass_affluent' %}selected{% endif %}>Mass Affluent ($100K–$1M)</option>
+          <option value="HNWI"          {% if prospect.wealth_tier == 'HNWI'          %}selected{% endif %}>HNWI ($1M–$30M)</option>
+          <option value="UHNWI"         {% if prospect.wealth_tier == 'UHNWI'         %}selected{% endif %}>UHNWI ($30M+)</option>
+          <option value="institutional" {% if prospect.wealth_tier == 'institutional' %}selected{% endif %}>Institutional</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Asset Class Preference</label>
+        <select name="asset_class_preference"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">- Not specified -</option>
+          <option value="PE"   {% if prospect.asset_class_preference == 'PE'   %}selected{% endif %}>PE - Private Equity</option>
+          <option value="RE"   {% if prospect.asset_class_preference == 'RE'   %}selected{% endif %}>RE - Real Estate</option>
+          <option value="both" {% if prospect.asset_class_preference == 'both' %}selected{% endif %}>Both</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Net Worth Estimate</label>
+        <input type="text" name="net_worth_estimate" value="{{ prospect.net_worth_estimate or '' }}"
+               placeholder="e.g. $5M–$10M"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Accredited Status</label>
+        <select name="accredited_status"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="unverified" {% if prospect.accredited_status == 'unverified' %}selected{% endif %}>Unverified</option>
+          <option value="pending"    {% if prospect.accredited_status == 'pending'    %}selected{% endif %}>Pending</option>
+          <option value="verified"   {% if prospect.accredited_status == 'verified'   %}selected{% endif %}>Verified</option>
+          <option value="failed"     {% if prospect.accredited_status == 'failed'     %}selected{% endif %}>Failed</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Source</label>
+        <select name="source"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="manual"   {% if prospect.source == 'manual'   %}selected{% endif %}>Manual</option>
+          <option value="apollo"   {% if prospect.source == 'apollo'   %}selected{% endif %}>Apollo</option>
+          <option value="referral" {% if prospect.source == 'referral' %}selected{% endif %}>Referral</option>
+          <option value="linkedin" {% if prospect.source == 'linkedin' %}selected{% endif %}>LinkedIn</option>
+        </select>
+      </div>
+
+    </div>
+  </div>
+
+  {# ── Actions ── #}
+  <div class="flex items-center gap-3">
+    <button type="submit"
+            class="rounded-lg bg-indigo-600 text-white px-6 py-2.5 text-sm font-medium hover:bg-indigo-700 transition-colors">
+      Save Changes
+    </button>
+    <a href="/dashboard/prospects/{{ prospect.id }}"
+       class="rounded-lg border border-gray-300 text-gray-600 px-5 py-2.5 text-sm hover:bg-gray-50 transition-colors">
+      Cancel
+    </a>
+  </div>
+
+</form>
+{% endblock %}

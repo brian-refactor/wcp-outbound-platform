@@ -623,6 +623,75 @@ def prospect_delete(prospect_id: str, db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
+# Edit prospect
+# ---------------------------------------------------------------------------
+
+@router.get("/prospects/{prospect_id}/edit", response_class=HTMLResponse)
+def prospect_edit_form(prospect_id: str, request: Request, db: Session = Depends(get_db)):
+    prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
+    if not prospect:
+        return HTMLResponse("<h1>Prospect not found</h1>", status_code=404)
+    return templates.TemplateResponse(
+        "dashboard/prospect_edit.html",
+        {"request": request, "prospect": prospect, "active_page": "prospects", "error": None},
+    )
+
+
+@router.post("/prospects/{prospect_id}/edit", response_class=HTMLResponse)
+def prospect_edit_submit(
+    prospect_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    first_name: Optional[str] = Form(None),
+    last_name: Optional[str] = Form(None),
+    email: str = Form(...),
+    company: Optional[str] = Form(None),
+    title: Optional[str] = Form(None),
+    phone: Optional[str] = Form(None),
+    linkedin_url: Optional[str] = Form(None),
+    geography: Optional[str] = Form(None),
+    asset_class_preference: Optional[str] = Form(None),
+    wealth_tier: Optional[str] = Form(None),
+    investor_type: Optional[str] = Form(None),
+    net_worth_estimate: Optional[str] = Form(None),
+    source: Optional[str] = Form(None),
+    accredited_status: Optional[str] = Form(None),
+):
+    prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
+    if not prospect:
+        return HTMLResponse("<h1>Prospect not found</h1>", status_code=404)
+
+    # Check email uniqueness if changed
+    email = email.strip().lower()
+    if email != prospect.email:
+        existing = db.query(Prospect).filter(Prospect.email == email).first()
+        if existing:
+            return templates.TemplateResponse(
+                "dashboard/prospect_edit.html",
+                {"request": request, "prospect": prospect, "active_page": "prospects",
+                 "error": f"Email {email} already belongs to another prospect."},
+            )
+
+    prospect.first_name = first_name.strip() or None if first_name else None
+    prospect.last_name = last_name.strip() or None if last_name else None
+    prospect.email = email
+    prospect.company = company.strip() or None if company else None
+    prospect.title = title.strip() or None if title else None
+    prospect.phone = phone.strip() or None if phone else None
+    prospect.linkedin_url = linkedin_url.strip() or None if linkedin_url else None
+    prospect.geography = geography.strip() or None if geography else None
+    prospect.asset_class_preference = asset_class_preference or None
+    prospect.wealth_tier = wealth_tier or None
+    prospect.investor_type = investor_type or None
+    prospect.net_worth_estimate = net_worth_estimate.strip() or None if net_worth_estimate else None
+    prospect.source = source or None
+    prospect.accredited_status = accredited_status or "unverified"
+
+    db.commit()
+    return RedirectResponse(url=f"/dashboard/prospects/{prospect_id}", status_code=303)
+
+
+# ---------------------------------------------------------------------------
 # Sequence performance
 # ---------------------------------------------------------------------------
 
