@@ -4,6 +4,21 @@
 
 {% block content %}
 
+{# ── Bulk enroll result banners ── #}
+{% if request.query_params.get('bulk_enrolled') %}
+<div class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+  </svg>
+  <span class="text-sm font-medium text-green-800">
+    {{ request.query_params.get('bulk_enrolled') }} prospect{{ 's' if request.query_params.get('bulk_enrolled') != '1' else '' }} enrolled.
+    {% if request.query_params.get('bulk_failed') %}
+      {{ request.query_params.get('bulk_failed') }} failed — check logs.
+    {% endif %}
+  </span>
+</div>
+{% endif %}
+
 {# ── Action buttons ── #}
 <div class="flex items-center justify-between mb-5">
   <div class="flex gap-2">
@@ -26,7 +41,7 @@
 </div>
 
 {# ── Search + Filter bar ── #}
-<form method="get" class="flex flex-wrap gap-3 mb-6">
+<form method="get" class="flex flex-wrap gap-3 mb-4">
   <input
     type="text"
     name="search"
@@ -34,6 +49,12 @@
     placeholder="Search name, email, company…"
     class="flex-1 min-w-48 rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
   />
+  <select name="enrolled"
+          class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <option value="" {% if not enrolled_filter %}selected{% endif %}>All prospects</option>
+    <option value="no"  {% if enrolled_filter == 'no'  %}selected{% endif %}>Not enrolled</option>
+    <option value="yes" {% if enrolled_filter == 'yes' %}selected{% endif %}>Enrolled</option>
+  </select>
   <select name="status"
           class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
     <option value="" {% if not status_filter %}selected{% endif %}>All statuses</option>
@@ -42,11 +63,30 @@
     <option value="bounced"   {% if status_filter == 'bounced'   %}selected{% endif %}>Bounced</option>
     <option value="opted_out" {% if status_filter == 'opted_out' %}selected{% endif %}>Opted Out</option>
   </select>
+  <select name="investor_type"
+          class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <option value="" {% if not investor_type_filter %}selected{% endif %}>All investor types</option>
+    <option value="individual"    {% if investor_type_filter == 'individual'    %}selected{% endif %}>Individual</option>
+    <option value="family_office" {% if investor_type_filter == 'family_office' %}selected{% endif %}>Family Office</option>
+    <option value="RIA"           {% if investor_type_filter == 'RIA'           %}selected{% endif %}>RIA</option>
+    <option value="broker_dealer" {% if investor_type_filter == 'broker_dealer' %}selected{% endif %}>Broker-Dealer</option>
+    <option value="endowment"     {% if investor_type_filter == 'endowment'     %}selected{% endif %}>Endowment</option>
+    <option value="pension"       {% if investor_type_filter == 'pension'       %}selected{% endif %}>Pension</option>
+    <option value="other"         {% if investor_type_filter == 'other'         %}selected{% endif %}>Other</option>
+  </select>
+  <select name="wealth_tier"
+          class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <option value="" {% if not wealth_tier_filter %}selected{% endif %}>All wealth tiers</option>
+    <option value="mass_affluent" {% if wealth_tier_filter == 'mass_affluent' %}selected{% endif %}>Mass Affluent</option>
+    <option value="HNWI"          {% if wealth_tier_filter == 'HNWI'          %}selected{% endif %}>HNWI</option>
+    <option value="UHNWI"         {% if wealth_tier_filter == 'UHNWI'         %}selected{% endif %}>UHNWI</option>
+    <option value="institutional" {% if wealth_tier_filter == 'institutional' %}selected{% endif %}>Institutional</option>
+  </select>
   <button type="submit"
           class="rounded-lg bg-indigo-600 text-white px-5 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
     Filter
   </button>
-  {% if search or status_filter %}
+  {% if search or status_filter or investor_type_filter or wealth_tier_filter or enrolled_filter %}
   <a href="/dashboard/prospects"
      class="rounded-lg border border-gray-300 text-gray-600 px-4 py-2 text-sm hover:bg-gray-50 transition-colors">
     Clear
@@ -59,119 +99,208 @@
   {{ total }} prospect{{ 's' if total != 1 else '' }}
   {% if search %} matching "{{ search }}"{% endif %}
   {% if status_filter %} · status: {{ status_filter }}{% endif %}
+  {% if investor_type_filter %} · type: {{ investor_type_filter }}{% endif %}
+  {% if wealth_tier_filter %} · tier: {{ wealth_tier_filter }}{% endif %}
+  {% if enrolled_filter %} · {{ 'enrolled' if enrolled_filter == 'yes' else 'not enrolled' }}{% endif %}
 </div>
 
-{# ── Table ── #}
+{# ── Table (wrapped in form for bulk enroll) ── #}
 {% set status_colors = {
   "active":    "bg-blue-100 text-blue-700",
   "completed": "bg-green-100 text-green-700",
   "bounced":   "bg-red-100 text-red-700",
   "opted_out": "bg-orange-100 text-orange-700",
 } %}
-{% set track_colors = {
-  "standard":    "bg-gray-100 text-gray-600",
-  "high_intent": "bg-yellow-100 text-yellow-700",
-} %}
 
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-  <table class="w-full text-sm">
-    <thead class="bg-gray-50 border-b border-gray-200">
-      <tr>
-        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Prospect</th>
-        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Company</th>
-        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Campaigns</th>
-        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Status</th>
-        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">HubSpot</th>
-        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Last Event</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-gray-100">
-      {% for p in prospects %}
-      <tr class="hover:bg-gray-50 cursor-pointer transition-colors"
-          onclick="window.location='/dashboard/prospects/{{ p.id }}'">
-        <td class="px-4 py-3">
-          <div class="font-medium text-gray-900">
-            {{ p.first_name or '' }} {{ p.last_name or '' }}
-          </div>
-          <div class="text-xs text-gray-400">{{ p.email }}</div>
-        </td>
-        <td class="px-4 py-3 text-gray-600">{{ p.company or '-' }}</td>
-        <td class="px-4 py-3">
-          {% if p.enrollments_summary %}
-            <div class="flex flex-wrap gap-1">
-            {% for entry in p.enrollments_summary.split(',') %}
-              {% set parts = entry.split('|') %}
-              {% set name = parts[0] %}
-              {% set estatus = parts[1] if parts|length > 1 else '' %}
-              <span class="px-2 py-0.5 rounded-full text-xs font-medium
-                           {{ status_colors.get(estatus, 'bg-gray-100 text-gray-600') }}"
-                    title="{{ estatus }}">
-                {{ name }}
-              </span>
-            {% endfor %}
-            </div>
-          {% else %}
-            <span class="text-gray-400 text-xs">-</span>
-          {% endif %}
-        </td>
-        <td class="px-4 py-3">
-          {% if p.latest_status %}
-          <span class="px-2 py-0.5 rounded-full text-xs font-medium
-                       {{ status_colors.get(p.latest_status, 'bg-gray-100 text-gray-600') }}">
-            {{ p.latest_status }}
-          </span>
-          {% else %}<span class="text-gray-400 text-xs">not enrolled</span>{% endif %}
-        </td>
-        <td class="px-4 py-3">
-          {% if p.hubspot_status == 'deal' %}
-          <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">Deal Created</span>
-          {% elif p.hubspot_status == 'contact' %}
-          <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">In HubSpot</span>
-          {% elif p.hubspot_status == 'pending' %}
-          <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Pending</span>
-          {% else %}
-          <span class="text-gray-300 text-xs">-</span>
-          {% endif %}
-        </td>
-        <td class="px-4 py-3 text-xs text-gray-400">
-          {% if p.last_event_at %}
-            {{ p.last_event_at | to_et('%b %d, %H:%M') }}
-            <span class="ml-1 text-gray-500">{{ p.last_event_type }}</span>
-          {% else %}-{% endif %}
-        </td>
-      </tr>
-      {% else %}
-      <tr>
-        <td colspan="6" class="px-4 py-10 text-center text-gray-400 text-sm">
-          No prospects found.
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+<form id="bulk-form" method="post" action="/dashboard/prospects/bulk-enroll">
+  <input type="hidden" name="campaign_name" id="bulk-campaign-name" value=""/>
+
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 border-b border-gray-200">
+        <tr>
+          <th class="px-4 py-3 w-8">
+            <input type="checkbox" id="select-all"
+                   class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                   onchange="toggleAll(this)"/>
+          </th>
+          <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Prospect</th>
+          <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Company</th>
+          <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Type / Tier</th>
+          <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Campaigns</th>
+          <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">HubSpot</th>
+          <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Last Event</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for p in prospects %}
+        <tr class="hover:bg-gray-50 transition-colors" id="row-{{ p.id }}">
+          <td class="px-4 py-3" onclick="event.stopPropagation()">
+            <input type="checkbox" name="prospect_ids" value="{{ p.id }}"
+                   class="prospect-cb rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                   onchange="updateBulkBar()"/>
+          </td>
+          <td class="px-4 py-3 cursor-pointer" onclick="window.location='/dashboard/prospects/{{ p.id }}'">
+            <div class="font-medium text-gray-900">{{ p.first_name or '' }} {{ p.last_name or '' }}</div>
+            <div class="text-xs text-gray-400">{{ p.email }}</div>
+          </td>
+          <td class="px-4 py-3 text-gray-600 cursor-pointer" onclick="window.location='/dashboard/prospects/{{ p.id }}'">
+            {{ p.company or '-' }}
+          </td>
+          <td class="px-4 py-3 cursor-pointer" onclick="window.location='/dashboard/prospects/{{ p.id }}'">
+            <div class="text-xs text-gray-600">{{ p.investor_type or '-' }}</div>
+            <div class="text-xs text-gray-400">{{ p.wealth_tier or '' }}</div>
+          </td>
+          <td class="px-4 py-3 cursor-pointer" onclick="window.location='/dashboard/prospects/{{ p.id }}'">
+            {% if p.enrollments_summary %}
+              <div class="flex flex-wrap gap-1">
+              {% for entry in p.enrollments_summary.split(',') %}
+                {% set parts = entry.split('|') %}
+                {% set name = parts[0] %}
+                {% set estatus = parts[1] if parts|length > 1 else '' %}
+                <span class="px-2 py-0.5 rounded-full text-xs font-medium
+                             {{ status_colors.get(estatus, 'bg-gray-100 text-gray-600') }}"
+                      title="{{ estatus }}">
+                  {{ name }}
+                </span>
+              {% endfor %}
+              </div>
+            {% else %}
+              <span class="text-gray-400 text-xs">-</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 cursor-pointer" onclick="window.location='/dashboard/prospects/{{ p.id }}'">
+            {% if p.hubspot_status == 'deal' %}
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">Deal Created</span>
+            {% elif p.hubspot_status == 'contact' %}
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">In HubSpot</span>
+            {% elif p.hubspot_status == 'pending' %}
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Pending</span>
+            {% else %}
+            <span class="text-gray-300 text-xs">-</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-xs text-gray-400 cursor-pointer" onclick="window.location='/dashboard/prospects/{{ p.id }}'">
+            {% if p.last_event_at %}
+              {{ p.last_event_at | to_et('%b %d, %H:%M') }}
+              <span class="ml-1 text-gray-500">{{ p.last_event_type }}</span>
+            {% else %}-{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="px-4 py-10 text-center text-gray-400 text-sm">
+            No prospects found.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# ── Bulk action bar ── #}
+  <div id="bulk-bar"
+       class="hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg px-6 py-4 z-50">
+    <div class="max-w-6xl mx-auto flex flex-wrap items-center gap-4">
+      <span id="bulk-count" class="text-sm font-semibold text-gray-700">0 selected</span>
+      <div class="flex items-center gap-2 flex-1 flex-wrap">
+        <select id="bulk-campaign" name="campaign_id"
+                onchange="document.getElementById('bulk-campaign-name').value = this.options[this.selectedIndex].dataset.name || ''"
+                class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="" data-name="">— Select campaign —</option>
+          {% for c in campaigns %}
+          <option value="{{ c.id }}" data-name="{{ c.name }}">{{ c.name }} ({{ c.id }})</option>
+          {% endfor %}
+        </select>
+        <select id="bulk-seq-type" name="sequence_type"
+                class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">— Sequence type —</option>
+          {% for st in sequence_types %}
+          <option value="{{ st }}">{{ st }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" onclick="submitBulkEnroll()"
+                class="rounded-lg bg-indigo-600 text-white px-5 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
+          Enroll Selected
+        </button>
+        <button type="button" onclick="clearSelection()"
+                class="rounded-lg border border-gray-300 text-gray-600 px-4 py-2 text-sm hover:bg-gray-50 transition-colors">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+</form>
 
 {# ── Pagination ── #}
+{% set qs_parts = [] %}
+{% if search %}{% set _ = qs_parts.append('search=' ~ search) %}{% endif %}
+{% if status_filter %}{% set _ = qs_parts.append('status=' ~ status_filter) %}{% endif %}
+{% if investor_type_filter %}{% set _ = qs_parts.append('investor_type=' ~ investor_type_filter) %}{% endif %}
+{% if wealth_tier_filter %}{% set _ = qs_parts.append('wealth_tier=' ~ wealth_tier_filter) %}{% endif %}
+{% if enrolled_filter %}{% set _ = qs_parts.append('enrolled=' ~ enrolled_filter) %}{% endif %}
+{% set qs = qs_parts | join('&') %}
+
 {% if total_pages > 1 %}
-<div class="flex items-center justify-between mt-4">
-  <div class="text-xs text-gray-500">
-    Page {{ page }} of {{ total_pages }}
-  </div>
+<div class="flex items-center justify-between mt-4 mb-20">
+  <div class="text-xs text-gray-500">Page {{ page }} of {{ total_pages }}</div>
   <div class="flex gap-2">
     {% if page > 1 %}
-    <a href="?page={{ page - 1 }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+    <a href="?page={{ page - 1 }}{% if qs %}&{{ qs }}{% endif %}"
        class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs hover:bg-gray-50 transition-colors">
       Previous
     </a>
     {% endif %}
     {% if page < total_pages %}
-    <a href="?page={{ page + 1 }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+    <a href="?page={{ page + 1 }}{% if qs %}&{{ qs }}{% endif %}"
        class="rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-xs hover:bg-indigo-700 transition-colors">
       Next
     </a>
     {% endif %}
   </div>
 </div>
+{% else %}
+<div class="mb-20"></div>
 {% endif %}
+
+<style>
+  #bulk-bar { transition: transform 0.2s ease; }
+</style>
+
+<script>
+  function updateBulkBar() {
+    const checked = document.querySelectorAll('.prospect-cb:checked');
+    const bar = document.getElementById('bulk-bar');
+    const count = document.getElementById('bulk-count');
+    count.textContent = checked.length + ' selected';
+    bar.classList.toggle('hidden', checked.length === 0);
+    document.getElementById('select-all').indeterminate =
+      checked.length > 0 && checked.length < document.querySelectorAll('.prospect-cb').length;
+    document.getElementById('select-all').checked =
+      checked.length === document.querySelectorAll('.prospect-cb').length;
+  }
+
+  function toggleAll(el) {
+    document.querySelectorAll('.prospect-cb').forEach(cb => cb.checked = el.checked);
+    updateBulkBar();
+  }
+
+  function clearSelection() {
+    document.querySelectorAll('.prospect-cb').forEach(cb => cb.checked = false);
+    document.getElementById('select-all').checked = false;
+    document.getElementById('bulk-bar').classList.add('hidden');
+  }
+
+  function submitBulkEnroll() {
+    const campaignId = document.getElementById('bulk-campaign').value;
+    const seqType = document.getElementById('bulk-seq-type').value;
+    if (!campaignId) { alert('Please select a campaign.'); return; }
+    if (!seqType) { alert('Please select a sequence type.'); return; }
+    const count = document.querySelectorAll('.prospect-cb:checked').length;
+    if (!confirm('Enroll ' + count + ' prospect(s) in the selected campaign?')) return;
+    document.getElementById('bulk-form').submit();
+  }
+</script>
 
 {% endblock %}

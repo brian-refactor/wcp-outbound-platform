@@ -137,6 +137,9 @@ def dashboard_prospects(
     request: Request,
     search: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    investor_type: Optional[str] = Query(None),
+    wealth_tier: Optional[str] = Query(None),
+    enrolled: Optional[str] = Query(None),  # "yes" | "no"
     page: int = Query(1, ge=1),
     db: Session = Depends(get_db),
 ):
@@ -206,11 +209,22 @@ def dashboard_prospects(
                 SELECT 1 FROM sequence_enrollments se2
                 WHERE se2.prospect_id = p.id
                   AND se2.status = :status
-                ORDER BY se2.enrolled_at DESC
-                LIMIT 1
             )
         """
         params["status"] = status
+
+    if investor_type:
+        base_query += " AND p.investor_type = :investor_type"
+        params["investor_type"] = investor_type
+
+    if wealth_tier:
+        base_query += " AND p.wealth_tier = :wealth_tier"
+        params["wealth_tier"] = wealth_tier
+
+    if enrolled == "yes":
+        base_query += " AND EXISTS (SELECT 1 FROM sequence_enrollments se2 WHERE se2.prospect_id = p.id)"
+    elif enrolled == "no":
+        base_query += " AND NOT EXISTS (SELECT 1 FROM sequence_enrollments se2 WHERE se2.prospect_id = p.id)"
 
     count_sql = f"SELECT COUNT(*) FROM ({base_query}) AS sub"
     total = db.execute(text(count_sql), params).scalar() or 0
@@ -222,6 +236,12 @@ def dashboard_prospects(
 
     total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
 
+    campaigns = []
+    try:
+        campaigns = smartlead.list_campaigns()
+    except Exception:
+        pass
+
     return templates.TemplateResponse(
         "dashboard/prospects.html",
         {
@@ -229,12 +249,65 @@ def dashboard_prospects(
             "prospects": rows,
             "search": search or "",
             "status_filter": status or "",
+            "investor_type_filter": investor_type or "",
+            "wealth_tier_filter": wealth_tier or "",
+            "enrolled_filter": enrolled or "",
             "page": page,
             "total": total,
             "total_pages": total_pages,
+            "campaigns": campaigns,
+            "sequence_types": VALID_SEQUENCE_TYPES,
             "active_page": "prospects",
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Bulk enroll
+# ---------------------------------------------------------------------------
+
+@router.post("/prospects/bulk-enroll", response_class=HTMLResponse)
+def prospect_bulk_enroll(
+    request: Request,
+    db: Session = Depends(get_db),
+    prospect_ids: list[str] = Form(...),
+    campaign_id: str = Form(...),
+    campaign_name: str = Form(""),
+    sequence_type: str = Form(...),
+):
+    if not campaign_id or not sequence_type:
+        return RedirectResponse(url="/dashboard/prospects?bulk_error=missing_fields", status_code=303)
+
+    prospects = db.query(Prospect).filter(Prospect.id.in_(prospect_ids)).all()
+    enrolled_count = 0
+    failed = []
+
+    for prospect in prospects:
+        try:
+            smartlead.enroll_prospect(
+                campaign_id=int(campaign_id),
+                email=prospect.email,
+                first_name=prospect.first_name,
+                last_name=prospect.last_name,
+                custom_fields=_prospect_custom_fields(prospect),
+            )
+            db.add(SequenceEnrollment(
+                prospect_id=prospect.id,
+                smartlead_campaign_id=str(campaign_id),
+                campaign_name=campaign_name or None,
+                sequence_type=sequence_type,
+                status="active",
+            ))
+            enrolled_count += 1
+        except Exception as e:
+            logger.error("Bulk enroll failed for %s: %s", prospect.email, e)
+            failed.append(prospect.email)
+
+    db.commit()
+    msg = f"bulk_enrolled={enrolled_count}"
+    if failed:
+        msg += f"&bulk_failed={len(failed)}"
+    return RedirectResponse(url=f"/dashboard/prospects?{msg}", status_code=303)
 
 
 # ---------------------------------------------------------------------------
