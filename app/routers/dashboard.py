@@ -7,6 +7,7 @@ import csv
 import io
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
@@ -20,7 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.integrations import smartlead
+from app.integrations import smartlead, zerobounce
 from app.models.email_event import EmailEvent
 from app.models.prospect import Prospect
 from app.models.sequence_enrollment import SequenceEnrollment
@@ -465,14 +466,26 @@ def prospect_new_submit(
         db.rollback()
         return render_error(f"A prospect with email {email} already exists.")
 
+    # Validate email immediately via ZeroBounce (single-email call)
+    try:
+        results = zerobounce.validate_batch([email])
+        validation_status = results.get(email)
+        if validation_status:
+            prospect.email_validation_status = validation_status
+            prospect.email_validated_at = datetime.now(timezone.utc)
+            db.commit()
+    except Exception as e:
+        logger.warning("ZeroBounce validation failed for %s: %s", email, e)
+
     # Optional enrollment
     if campaign_id and campaign_id.strip() and sequence_type:
         if sequence_type not in VALID_SEQUENCE_TYPES:
             return render_error(f"Invalid sequence type: {sequence_type}")
         if prospect.email_validation_status != "valid":
+            status_label = prospect.email_validation_status or "not validated"
             return render_error(
-                f"Cannot enroll — email validation status is '{prospect.email_validation_status or 'not validated'}'. "
-                "Only prospects with a Valid email can be enrolled."
+                f"Prospect added, but cannot enroll — email validated as '{status_label}'. "
+                "Only valid emails can be enrolled."
             )
         try:
             smartlead.enroll_prospect(
