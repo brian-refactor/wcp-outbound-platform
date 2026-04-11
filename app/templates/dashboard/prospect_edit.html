@@ -162,6 +162,63 @@
     </div>
   </div>
 
+  {# ── Enroll in Sequence ── #}
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <div class="flex items-center gap-3 mb-1">
+      <h2 class="text-sm font-semibold text-gray-700">Enroll in Sequence</h2>
+      <span class="text-xs text-gray-400 font-normal">optional — leave campaign blank to skip</span>
+    </div>
+    <p class="text-xs text-gray-400 mb-4">
+      Select a Smartlead campaign to enroll this prospect after saving.
+      Email will be validated via ZeroBounce if not already validated.
+    </p>
+
+    {% if campaigns_error %}
+    <div class="mb-4 rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3 text-xs text-yellow-800">
+      Could not load campaigns from Smartlead: {{ campaigns_error }}
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Campaign</label>
+        <select name="campaign_id" id="campaign_id"
+                onchange="document.getElementById('campaign_name').value = this.options[this.selectedIndex].dataset.name || ''"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="" data-name="">- None (skip enrollment) -</option>
+          {% for c in campaigns %}
+          <option value="{{ c.id }}" data-name="{{ c.name }}">
+            {{ c.name }} ({{ c.id }})
+          </option>
+          {% endfor %}
+        </select>
+        <input type="hidden" name="campaign_name" id="campaign_name" value=""/>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Sequence Type</label>
+        <select name="sequence_type"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">- Select type -</option>
+          {% for st in sequence_types %}
+          <option value="{{ st }}">{{ st }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-span-2">
+        <label class="block text-xs font-medium text-gray-600 mb-1">High Intent Campaign <span class="text-gray-400 font-normal">(optional)</span></label>
+        <select name="high_intent_campaign_id"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">- None -</option>
+          {% for c in campaigns %}
+          <option value="{{ c.id }}">{{ c.name }} ({{ c.id }})</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
   {# ── Actions ── #}
   <div class="flex items-center gap-3">
     <button type="submit"

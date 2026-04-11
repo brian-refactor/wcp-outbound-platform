@@ -672,9 +672,24 @@ def prospect_edit_form(prospect_id: str, request: Request, db: Session = Depends
     prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
     if not prospect:
         return HTMLResponse("<h1>Prospect not found</h1>", status_code=404)
+    campaigns = []
+    campaigns_error = None
+    try:
+        campaigns = smartlead.list_campaigns()
+    except Exception as e:
+        campaigns_error = str(e)
+        logger.warning("Could not fetch Smartlead campaigns: %s", e)
     return templates.TemplateResponse(
         "dashboard/prospect_edit.html",
-        {"request": request, "prospect": prospect, "active_page": "prospects", "error": None},
+        {
+            "request": request,
+            "prospect": prospect,
+            "active_page": "prospects",
+            "error": None,
+            "campaigns": campaigns,
+            "campaigns_error": campaigns_error,
+            "sequence_types": VALID_SEQUENCE_TYPES,
+        },
     )
 
 
@@ -697,21 +712,42 @@ def prospect_edit_submit(
     net_worth_estimate: Optional[str] = Form(None),
     source: Optional[str] = Form(None),
     accredited_status: Optional[str] = Form(None),
+    campaign_id: Optional[str] = Form(None),
+    campaign_name: Optional[str] = Form(None),
+    sequence_type: Optional[str] = Form(None),
+    high_intent_campaign_id: Optional[str] = Form(None),
 ):
     prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
     if not prospect:
         return HTMLResponse("<h1>Prospect not found</h1>", status_code=404)
+
+    campaigns = []
+    try:
+        campaigns = smartlead.list_campaigns()
+    except Exception:
+        pass
+
+    def render_error(msg):
+        return templates.TemplateResponse(
+            "dashboard/prospect_edit.html",
+            {
+                "request": request,
+                "prospect": prospect,
+                "active_page": "prospects",
+                "error": msg,
+                "campaigns": campaigns,
+                "campaigns_error": None,
+                "sequence_types": VALID_SEQUENCE_TYPES,
+            },
+            status_code=422,
+        )
 
     # Check email uniqueness if changed
     email = email.strip().lower()
     if email != prospect.email:
         existing = db.query(Prospect).filter(Prospect.email == email).first()
         if existing:
-            return templates.TemplateResponse(
-                "dashboard/prospect_edit.html",
-                {"request": request, "prospect": prospect, "active_page": "prospects",
-                 "error": f"Email {email} already belongs to another prospect."},
-            )
+            return render_error(f"Email {email} already belongs to another prospect.")
 
     prospect.first_name = first_name.strip() or None if first_name else None
     prospect.last_name = last_name.strip() or None if last_name else None
@@ -729,6 +765,67 @@ def prospect_edit_submit(
     prospect.accredited_status = accredited_status or "unverified"
 
     db.commit()
+    db.refresh(prospect)
+
+    # Optional enrollment
+    if campaign_id and campaign_id.strip() and sequence_type:
+        if sequence_type not in VALID_SEQUENCE_TYPES:
+            return render_error(f"Invalid sequence type: {sequence_type}")
+
+        # Check for an existing active enrollment in this campaign
+        existing_enrollment = (
+            db.query(SequenceEnrollment)
+            .filter(
+                SequenceEnrollment.prospect_id == prospect.id,
+                SequenceEnrollment.smartlead_campaign_id == str(campaign_id),
+                SequenceEnrollment.status == "active",
+            )
+            .first()
+        )
+        if existing_enrollment:
+            return render_error("Prospect is already actively enrolled in that campaign.")
+
+        # Validate email if not already validated
+        if prospect.email_validation_status != "valid":
+            try:
+                results = zerobounce.validate_batch([prospect.email])
+                validation_status = results.get(prospect.email)
+                if validation_status:
+                    prospect.email_validation_status = validation_status
+                    prospect.email_validated_at = datetime.now(timezone.utc)
+                    db.commit()
+                    db.refresh(prospect)
+            except Exception as e:
+                logger.warning("ZeroBounce validation failed for %s: %s", prospect.email, e)
+
+        if prospect.email_validation_status != "valid":
+            status_label = prospect.email_validation_status or "not validated"
+            return render_error(
+                f"Cannot enroll — email validated as '{status_label}'. "
+                "Only valid emails can be enrolled."
+            )
+
+        try:
+            smartlead.enroll_prospect(
+                campaign_id=int(campaign_id),
+                email=prospect.email,
+                first_name=prospect.first_name,
+                last_name=prospect.last_name,
+                custom_fields=_prospect_custom_fields(prospect),
+            )
+            enrollment = SequenceEnrollment(
+                prospect_id=prospect.id,
+                smartlead_campaign_id=str(campaign_id),
+                campaign_name=(campaign_name or "").strip() or None,
+                high_intent_campaign_id=str(high_intent_campaign_id) if high_intent_campaign_id else None,
+                sequence_type=sequence_type,
+            )
+            db.add(enrollment)
+            db.commit()
+        except Exception as e:
+            logger.error("Enrollment failed for %s: %s", prospect.email, e)
+            return render_error(f"Changes saved but enrollment failed: {e}")
+
     return RedirectResponse(url=f"/dashboard/prospects/{prospect_id}", status_code=303)
 
 
