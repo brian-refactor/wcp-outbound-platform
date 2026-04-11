@@ -184,6 +184,8 @@ def dashboard_prospects(
             (SELECT ee.occurred_at FROM email_events ee
              WHERE ee.prospect_id = p.id ORDER BY ee.occurred_at DESC LIMIT 1)          AS last_event_at,
             p.email_validation_status,
+            p.investor_type,
+            p.wealth_tier,
             -- HubSpot status: deal > contact > pending > none
             CASE
                 WHEN EXISTS (SELECT 1 FROM email_events ee
