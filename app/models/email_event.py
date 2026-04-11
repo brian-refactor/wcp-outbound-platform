@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Index, String, Text, func
+from sqlalchemy import DateTime, Index, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -30,9 +30,11 @@ class EmailEvent(Base):
     domain_used: Mapped[Optional[str]] = mapped_column(String(255))
     clicked_url: Mapped[Optional[str]] = mapped_column(Text)
 
-    # Smartlead dedup key — prevents duplicate inserts from webhook retries
+    # Smartlead dedup key — prevents duplicate inserts from webhook retries.
+    # Unique per (message_id, event_type) so sent/open/click/reply for the same
+    # email are all stored, but retries of the exact same event are dropped.
     smartlead_message_id: Mapped[Optional[str]] = mapped_column(
-        String(255), unique=True, nullable=True
+        String(255), nullable=True
     )
 
     # NULL until synced to HubSpot — used by the 5-min batch sync task
@@ -48,6 +50,10 @@ class EmailEvent(Base):
     )
 
     __table_args__ = (
+        UniqueConstraint(
+            "smartlead_message_id", "event_type",
+            name="uq_email_events_message_event",
+        ),
         # Fast lookup of all events for a given enrollment
         Index("idx_email_events_enrollment", "enrollment_id"),
         # Fast lookup of unsynced events for HubSpot batch sync

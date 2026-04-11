@@ -214,7 +214,7 @@ prospect_id (nullable), enrollment_id (nullable), event_type (sent/open/click/re
 2. On **reply** or **sequence complete** event → enrollment `status = "completed"`.
 3. On **bounce** → enrollment `status = "bounced"`.
 4. On **unsubscribe** → enrollment `status = "opted_out"`.
-5. High Intent upgrade: ≥ 3 opens AND ≥ 1 click → enrolled in High Intent campaign, track set to `"high_intent"`.
+5. High Intent upgrade: ≥ 1 click older than 48 hours AND no reply → enrolled in High Intent campaign, track set to `"high_intent"`.
 
 ---
 
