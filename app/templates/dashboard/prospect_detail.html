@@ -57,8 +57,8 @@
         <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">Accredited ✓</span>
         {% elif prospect.accredited_status == 'failed' %}
         <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">Not Accredited</span>
-        {% else %}
-        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">Unverified</span>
+        {% elif prospect.accredited_status == 'pending' %}
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">Accreditation Pending</span>
         {% endif %}
         {% if prospect.email_validation_status == 'valid' %}
         <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Email Valid</span>
