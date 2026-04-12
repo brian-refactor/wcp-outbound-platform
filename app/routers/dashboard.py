@@ -379,18 +379,36 @@ def _prospect_custom_fields(prospect: Prospect) -> dict:
     }.items() if v}
 
 
+def _personalized_intro_fallback(prospect: Prospect) -> str:
+    """Generic opener used when Claude generation is unavailable or fails."""
+    if prospect.investor_type in ("family_office", "RIA", "broker_dealer"):
+        opener = "I wanted to reach out directly given your work in the wealth management space."
+    elif prospect.asset_class_preference == "RE":
+        opener = "I wanted to reach out given your interest in real estate as an asset class."
+    elif prospect.asset_class_preference == "PE":
+        opener = "I wanted to reach out given your interest in private equity."
+    elif prospect.geography:
+        opener = f"I wanted to reach out to a fellow investor in the {prospect.geography} market."
+    else:
+        opener = "I wanted to reach out directly about a private markets opportunity."
+    return opener
+
+
 def _ensure_personalized_intro(prospect: Prospect, db: Session) -> None:
     """Generate and save a personalized intro if the prospect doesn't have one."""
     if prospect.personalized_intro:
         return
-    if not settings.anthropic_api_key:
-        return
-    try:
-        from app.integrations.claude_ai import generate_personalized_intro
-        prospect.personalized_intro = generate_personalized_intro(prospect)
-        db.flush()
-    except Exception as e:
-        logger.warning("Could not generate personalized intro for %s: %s", prospect.email, e)
+    if settings.anthropic_api_key:
+        try:
+            from app.integrations.claude_ai import generate_personalized_intro
+            prospect.personalized_intro = generate_personalized_intro(prospect)
+            db.flush()
+            return
+        except Exception as e:
+            logger.warning("Could not generate personalized intro for %s: %s", prospect.email, e)
+    # Fall back to a rule-based opener so the Smartlead variable is never blank
+    prospect.personalized_intro = _personalized_intro_fallback(prospect)
+    db.flush()
 
 
 @router.get("/prospects/new", response_class=HTMLResponse)
