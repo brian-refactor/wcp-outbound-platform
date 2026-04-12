@@ -90,7 +90,7 @@ class EmailEventOut(BaseModel):
 class EnrollmentOut(BaseModel):
     id: uuid.UUID
     smartlead_campaign_id: str
-    sequence_type: str
+    campaign_name: Optional[str]
     track: str
     status: str
     enrolled_at: datetime

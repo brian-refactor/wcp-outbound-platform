@@ -22,9 +22,6 @@ class SequenceEnrollment(Base):
     campaign_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     high_intent_campaign_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
 
-    # RE_DEAL | RE_FUND | PE_DEAL | PE_FUND
-    sequence_type: Mapped[str] = mapped_column(String(20), nullable=False)
-
     # standard | high_intent
     track: Mapped[str] = mapped_column(String(20), nullable=False, default="standard")
 

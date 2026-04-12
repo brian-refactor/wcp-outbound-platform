@@ -10,11 +10,11 @@
 
   {# Funnel by sequence type #}
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-    <h2 class="text-sm font-semibold text-gray-700 mb-4">Funnel by Sequence Type</h2>
+    <h2 class="text-sm font-semibold text-gray-700 mb-4">Funnel by Campaign</h2>
     <canvas id="funnelChart" height="200"></canvas>
     <script>
       (function() {
-        const labels   = {{ seq_types | map(attribute='sequence_type') | list | tojson }};
+        const labels   = {{ seq_types | map(attribute='campaign_name') | list | tojson }};
         const enrolled = {{ seq_types | map(attribute='enrolled')      | list | tojson }};
         const opened   = {{ seq_types | map(attribute='opened')        | list | tojson }};
         const clicked  = {{ seq_types | map(attribute='clicked')       | list | tojson }};
@@ -46,7 +46,7 @@
     <canvas id="trackChart" height="200"></canvas>
     <script>
       (function() {
-        const labels        = {{ seq_types | map(attribute='sequence_type')   | list | tojson }};
+        const labels        = {{ seq_types | map(attribute='campaign_name')   | list | tojson }};
         const standardData  = {{ seq_types | map(attribute='standard_count')  | list | tojson }};
         const hiData        = {{ seq_types | map(attribute='high_intent_count')| list | tojson }};
         new Chart(document.getElementById('trackChart'), {
@@ -77,12 +77,12 @@
 {# ── Performance table ── #}
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
   <div class="px-6 py-4 border-b border-gray-100">
-    <h2 class="text-sm font-semibold text-gray-700">By Sequence Type &amp; Track</h2>
+    <h2 class="text-sm font-semibold text-gray-700">By Campaign &amp; Track</h2>
   </div>
   <table class="w-full text-sm">
     <thead class="bg-gray-50 border-b border-gray-200">
       <tr>
-        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Sequence</th>
+        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Campaign</th>
         <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Track</th>
         <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Enrolled</th>
         <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Opened</th>
@@ -96,7 +96,7 @@
     <tbody class="divide-y divide-gray-100">
       {% for row in sequences %}
       <tr class="hover:bg-gray-50">
-        <td class="px-4 py-3 font-mono font-semibold text-gray-800">{{ row.sequence_type }}</td>
+        <td class="px-4 py-3 font-semibold text-gray-800">{{ row.campaign_name }}</td>
         <td class="px-4 py-3">
           <span class="px-2 py-0.5 rounded-full text-xs font-medium
                        {% if row.track == 'high_intent' %}bg-yellow-100 text-yellow-700

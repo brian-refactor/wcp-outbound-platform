@@ -169,17 +169,6 @@
         <input type="hidden" name="campaign_name" id="campaign_name" value="{{ form.get('campaign_name') or '' }}"/>
       </div>
 
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Sequence Type</label>
-        <select name="sequence_type"
-                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">- Select type -</option>
-          {% for st in sequence_types %}
-          <option value="{{ st }}" {% if form.get('sequence_type') == st %}selected{% endif %}>{{ st }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
       <div class="col-span-2">
         <label class="block text-xs font-medium text-gray-600 mb-1">High Intent Campaign</label>
         <select name="high_intent_campaign_id"

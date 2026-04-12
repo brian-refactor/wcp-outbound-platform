@@ -192,7 +192,7 @@
 
   {# Enrollment header #}
   <div class="flex flex-wrap items-center gap-4 px-6 py-4 border-b border-gray-100 bg-gray-50">
-    <span class="font-mono text-sm font-semibold text-gray-800">{{ enrollment.sequence_type }}</span>
+    <span class="font-mono text-sm font-semibold text-gray-800">{{ enrollment.campaign_name or enrollment.smartlead_campaign_id }}</span>
     <span class="px-2.5 py-0.5 rounded-full text-xs font-medium
                  {{ status_colors.get(enrollment.status, 'bg-gray-100 text-gray-600') }}">
       {{ enrollment.status }}

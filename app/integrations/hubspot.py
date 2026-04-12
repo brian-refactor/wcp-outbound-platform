@@ -154,7 +154,7 @@ def build_activity_summary(
     prospect_name: str,
     prospect_email: str,
     company: str | None,
-    sequence_type: str,
+    campaign_name: str | None,
     track: str,
     events: list[dict],
 ) -> str:
@@ -167,7 +167,7 @@ def build_activity_summary(
     lines = [
         f"Outbound sequence reply — {prospect_name} <{prospect_email}>",
         f"Company: {company or 'Unknown'}",
-        f"Sequence: {sequence_type} | Track at reply: {track}",
+        f"Campaign: {campaign_name or 'Unknown'} | Track at reply: {track}",
         "",
         "── Email Activity History ──",
     ]

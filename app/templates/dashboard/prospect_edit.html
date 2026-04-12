@@ -195,17 +195,6 @@
         <input type="hidden" name="campaign_name" id="campaign_name" value=""/>
       </div>
 
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Sequence Type</label>
-        <select name="sequence_type"
-                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">- Select type -</option>
-          {% for st in sequence_types %}
-          <option value="{{ st }}">{{ st }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
       <div class="col-span-2">
         <label class="block text-xs font-medium text-gray-600 mb-1">High Intent Campaign <span class="text-gray-400 font-normal">(optional)</span></label>
         <select name="high_intent_campaign_id"

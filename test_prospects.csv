@@ -1,0 +1,11 @@
+first_name,last_name,email,company,title,phone,linkedin_url,geography,investor_type,wealth_tier,asset_class_preference,source
+James,Whitfield,j.whitfield@capitalpeak.com,Capital Peak Advisors,Managing Partner,404-555-0182,https://linkedin.com/in/jwhitfield,Southeast US,family_office,UHNWI,PE,apollo
+Sandra,Okonkwo,sokonkwo@lakesidewm.com,Lakeside Wealth Management,Chief Investment Officer,312-555-0247,https://linkedin.com/in/sokonkwo,Midwest,RIA,HNWI,both,apollo
+Robert,Haines,rhaines@blueridgefamily.com,Blue Ridge Family Office,Principal,828-555-0391,,Southeast US,family_office,UHNWI,RE,referral
+Michelle,Torres,m.torres@torresventures.com,Torres Ventures,Founder,305-555-0128,https://linkedin.com/in/mitorres,South Florida,individual,UHNWI,PE,apollo
+David,Callahan,dcallahan@maplestreetcap.com,Maple Street Capital,Portfolio Manager,617-555-0274,,Northeast US,RIA,HNWI,both,apollo
+Patricia,Ng,p.ng@harborviewfo.com,Harborview Family Office,Director,206-555-0315,https://linkedin.com/in/patriciang,Pacific Northwest,family_office,UHNWI,RE,referral
+Thomas,Greenwald,tgreenwald@meridianria.com,Meridian RIA Group,Senior Advisor,713-555-0463,,Texas,RIA,HNWI,PE,apollo
+Angela,Russo,a.russo@russoasset.com,Russo Asset Management,President,212-555-0189,https://linkedin.com/in/angelarusso,New York,individual,UHNWI,both,linkedin
+Kevin,Park,kpark@sunrisefamily.com,Sunrise Family Office,Investment Director,650-555-0372,https://linkedin.com/in/kevinpark,Bay Area,family_office,UHNWI,PE,apollo
+Linda,Ashworth,l.ashworth@cornerstone-wealth.com,Cornerstone Wealth Partners,Managing Director,704-555-0291,,Southeast US,RIA,HNWI,RE,apollo

@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(venv/Scripts/celery.exe:*)",
+      "Bash(venv/Scripts/python.exe:*)",
+      "Bash(taskkill /F /IM celery.exe)",
+      "Bash(tasklist)",
+      "Bash(taskkill /F /IM celery.exe /T)",
+      "Bash(taskkill /F /IM python.exe /T)",
+      "Bash(taskkill //F //IM celery.exe //T)",
+      "Bash(taskkill //F //IM python.exe //T)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(venv/Scripts/uvicorn.exe app.main:app:*)",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(curl -s -X POST http://localhost:8000/prospects/ -H 'Content-Type: application/json' -d '{:*)",
+      "Bash(curl -s -X POST http://localhost:8000/prospects/ -H 'Content-Type: application/json' -d '{\"email\": \"james.walker@acmecapital.com\", \"first_name\": \"James\"}')",
+      "Bash(printf 'email,first_name,last_name,company,title,asset_class_preference,geography,source\\\\r\\\\nsarah.chen@horizonfund.com,Sarah,Chen,Horizon Fund,General Partner,RE,West Coast,apollo\\\\r\\\\nmark.davis@peakventures.com,Mark,Davis,Peak Ventures,Partner,PE,Midwest,apollo\\\\r\\\\njames.walker@acmecapital.com,James,Walker,Acme Capital,Managing Partner,PE,Northeast,apollo\\\\r\\\\n,Missing,Email,No Corp,Analyst,,Southeast,apollo\\\\r\\\\nbad.person@corp.com,Bad,Person,Corp,Analyst,INVALID,Southeast,apollo\\\\r\\\\n')",
+      "Bash(curl -s -X POST http://localhost:8000/prospects/import/csv -F \"file=@/tmp/test_prospects.csv;type=text/csv\")",
+      "Bash(curl -sv -X POST http://localhost:8000/prospects/import/csv -F \"file=@/tmp/test_prospects.csv;type=text/csv\")",
+      "Bash(echo \"EXIT:$?\")",
+      "Read(//tmp/**)",
+      "WebSearch",
+      "WebFetch(domain:developers.hubspot.com)",
+      "Bash(git reset:*)",
+      "Bash(git commit:*)",
+      "Bash(pip install:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:github.com)",
+      "mcp__smartlead__list_campaigns",
+      "mcp__smartlead__get_campaign_analytics",
+      "mcp__smartlead__get_campaign_statistics"
+    ]
+  }
+}

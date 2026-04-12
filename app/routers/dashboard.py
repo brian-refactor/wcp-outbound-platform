@@ -179,12 +179,10 @@ def dashboard_prospects(
             p.created_at,
             (SELECT se.status FROM sequence_enrollments se
              WHERE se.prospect_id = p.id ORDER BY se.enrolled_at DESC LIMIT 1)          AS latest_status,
-            (SELECT se.sequence_type FROM sequence_enrollments se
-             WHERE se.prospect_id = p.id ORDER BY se.enrolled_at DESC LIMIT 1)          AS latest_sequence_type,
             (SELECT se.track FROM sequence_enrollments se
              WHERE se.prospect_id = p.id ORDER BY se.enrolled_at DESC LIMIT 1)          AS latest_track,
             (SELECT string_agg(
-                COALESCE(se.campaign_name, se.sequence_type) || '|' || se.status,
+                COALESCE(se.campaign_name, se.smartlead_campaign_id) || '|' || se.status,
                 ',' ORDER BY se.enrolled_at DESC
              ) FROM sequence_enrollments se
              WHERE se.prospect_id = p.id)                                                AS enrollments_summary,
@@ -299,7 +297,7 @@ def dashboard_prospects(
             "total_pages": total_pages,
             "campaigns": campaigns,
             "selected_campaign_id": campaign_id or "",
-            "sequence_types": VALID_SEQUENCE_TYPES,
+
             "active_page": "prospects",
         },
     )
@@ -316,9 +314,8 @@ def prospect_bulk_enroll(
     prospect_ids: list[str] = Form(...),
     campaign_id: str = Form(...),
     campaign_name: str = Form(""),
-    sequence_type: str = Form(...),
 ):
-    if not campaign_id or not sequence_type:
+    if not campaign_id:
         return RedirectResponse(url="/dashboard/prospects?bulk_error=missing_fields", status_code=303)
 
     prospects = db.query(Prospect).filter(Prospect.id.in_(prospect_ids)).all()
@@ -345,7 +342,6 @@ def prospect_bulk_enroll(
                 prospect_id=prospect.id,
                 smartlead_campaign_id=str(campaign_id),
                 campaign_name=campaign_name or None,
-                sequence_type=sequence_type,
                 status="active",
             ))
             enrolled_count += 1
@@ -364,7 +360,6 @@ def prospect_bulk_enroll(
 # Add single prospect
 # ---------------------------------------------------------------------------
 
-VALID_SEQUENCE_TYPES = ["RE_DEAL", "RE_FUND", "PE_DEAL", "PE_FUND"]
 
 
 def _prospect_custom_fields(prospect: Prospect) -> dict:
@@ -397,7 +392,7 @@ def prospect_new_form(request: Request):
         {
             "request": request,
             "active_page": "prospects",
-            "sequence_types": VALID_SEQUENCE_TYPES,
+
             "campaigns": campaigns,
             "campaigns_error": campaigns_error,
             "error": None,
@@ -424,7 +419,6 @@ def prospect_new_submit(
     source: Optional[str] = Form("manual"),
     campaign_id: Optional[str] = Form(None),
     campaign_name: Optional[str] = Form(None),
-    sequence_type: Optional[str] = Form(None),
     high_intent_campaign_id: Optional[str] = Form(None),
 ):
     form_data = {
@@ -434,7 +428,6 @@ def prospect_new_submit(
         "geography": geography, "wealth_tier": wealth_tier,
         "investor_type": investor_type, "source": source or "manual",
         "campaign_id": campaign_id, "campaign_name": campaign_name,
-        "sequence_type": sequence_type,
         "high_intent_campaign_id": high_intent_campaign_id,
     }
 
@@ -450,7 +443,7 @@ def prospect_new_submit(
             {
                 "request": request,
                 "active_page": "prospects",
-                "sequence_types": VALID_SEQUENCE_TYPES,
+    
                 "campaigns": campaigns,
                 "campaigns_error": None,
                 "error": msg,
@@ -504,9 +497,7 @@ def prospect_new_submit(
         logger.warning("ZeroBounce validation failed for %s: %s", email, e)
 
     # Optional enrollment
-    if campaign_id and campaign_id.strip() and sequence_type:
-        if sequence_type not in VALID_SEQUENCE_TYPES:
-            return render_error(f"Invalid sequence type: {sequence_type}")
+    if campaign_id and campaign_id.strip():
         if prospect.email_validation_status != "valid":
             status_label = prospect.email_validation_status or "not validated"
             return render_error(
@@ -526,7 +517,6 @@ def prospect_new_submit(
                 smartlead_campaign_id=str(campaign_id),
                 campaign_name=(campaign_name or "").strip() or None,
                 high_intent_campaign_id=str(high_intent_campaign_id) if high_intent_campaign_id else None,
-                sequence_type=sequence_type,
             )
             db.add(enrollment)
             db.commit()
@@ -714,7 +704,7 @@ def prospect_edit_form(prospect_id: str, request: Request, db: Session = Depends
             "error": None,
             "campaigns": campaigns,
             "campaigns_error": campaigns_error,
-            "sequence_types": VALID_SEQUENCE_TYPES,
+
         },
     )
 
@@ -740,7 +730,6 @@ def prospect_edit_submit(
     accredited_status: Optional[str] = Form(None),
     campaign_id: Optional[str] = Form(None),
     campaign_name: Optional[str] = Form(None),
-    sequence_type: Optional[str] = Form(None),
     high_intent_campaign_id: Optional[str] = Form(None),
 ):
     prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
@@ -763,7 +752,7 @@ def prospect_edit_submit(
                 "error": msg,
                 "campaigns": campaigns,
                 "campaigns_error": None,
-                "sequence_types": VALID_SEQUENCE_TYPES,
+    
             },
             status_code=422,
         )
@@ -794,10 +783,7 @@ def prospect_edit_submit(
     db.refresh(prospect)
 
     # Optional enrollment
-    if campaign_id and campaign_id.strip() and sequence_type:
-        if sequence_type not in VALID_SEQUENCE_TYPES:
-            return render_error(f"Invalid sequence type: {sequence_type}")
-
+    if campaign_id and campaign_id.strip():
         # Check for an existing active enrollment in this campaign
         existing_enrollment = (
             db.query(SequenceEnrollment)
@@ -844,7 +830,6 @@ def prospect_edit_submit(
                 smartlead_campaign_id=str(campaign_id),
                 campaign_name=(campaign_name or "").strip() or None,
                 high_intent_campaign_id=str(high_intent_campaign_id) if high_intent_campaign_id else None,
-                sequence_type=sequence_type,
             )
             db.add(enrollment)
             db.commit()

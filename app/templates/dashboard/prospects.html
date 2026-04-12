@@ -247,13 +247,6 @@
           <option value="{{ c.id }}" data-name="{{ c.name }}">{{ c.name }} ({{ c.id }})</option>
           {% endfor %}
         </select>
-        <select id="bulk-seq-type" name="sequence_type"
-                class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">— Sequence type —</option>
-          {% for st in sequence_types %}
-          <option value="{{ st }}">{{ st }}</option>
-          {% endfor %}
-        </select>
         <button type="button" onclick="submitBulkEnroll()"
                 class="rounded-lg bg-indigo-600 text-white px-5 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
           Enroll Selected

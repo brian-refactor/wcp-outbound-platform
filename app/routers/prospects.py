@@ -186,13 +186,9 @@ async def import_csv(
     return ImportResult(imported=imported, skipped=skipped, errors=errors)
 
 
-VALID_SEQUENCE_TYPES = {"RE_DEAL", "RE_FUND", "PE_DEAL", "PE_FUND"}
-
-
 class EnrollRequest(BaseModel):
     campaign_id: int
-    sequence_type: str  # RE_DEAL | RE_FUND | PE_DEAL | PE_FUND
-    high_intent_campaign_id: Optional[int] = None  # Smartlead campaign to switch to on High Intent
+    high_intent_campaign_id: Optional[int] = None
     custom_fields: Optional[dict] = None
 
 
@@ -203,12 +199,6 @@ def enroll_prospect(
     db: Session = Depends(get_db),
 ):
     """Enroll a prospect in a Smartlead campaign and start sequence tracking."""
-    if body.sequence_type not in VALID_SEQUENCE_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid sequence_type. Must be one of: {', '.join(sorted(VALID_SEQUENCE_TYPES))}",
-        )
-
     prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
     if not prospect:
         raise HTTPException(status_code=404, detail="Prospect not found")
@@ -244,7 +234,6 @@ def enroll_prospect(
         prospect_id=prospect.id,
         smartlead_campaign_id=str(body.campaign_id),
         high_intent_campaign_id=str(body.high_intent_campaign_id) if body.high_intent_campaign_id else None,
-        sequence_type=body.sequence_type,
     )
     db.add(enrollment)
     db.commit()

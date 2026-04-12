@@ -41,7 +41,7 @@ class OverviewStats(BaseModel):
 
 
 class SequenceTypeRow(BaseModel):
-    sequence_type: str
+    campaign_name: str
     enrolled: int
     opened: int
     clicked: int
@@ -67,7 +67,7 @@ class DomainSendRow(BaseModel):
 
 
 class SequenceRow(BaseModel):
-    sequence_type: str
+    campaign_name: str
     track: str
     enrolled: int
     opened: int
@@ -215,7 +215,7 @@ def sequences_by_type(db: Session = Depends(get_db), campaign_id: Optional[str] 
     params = {"campaign_id": campaign_id} if campaign_id else {}
     rows = db.execute(text(f"""
         SELECT
-            se.sequence_type,
+            COALESCE(se.campaign_name, se.smartlead_campaign_id) AS campaign_name,
             COUNT(DISTINCT se.id)                                                             AS enrolled,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'open'         THEN ee.prospect_id END) AS opened,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'click'        THEN ee.prospect_id END) AS clicked,
@@ -225,8 +225,8 @@ def sequences_by_type(db: Session = Depends(get_db), campaign_id: Optional[str] 
         FROM sequence_enrollments se
         LEFT JOIN email_events ee ON ee.enrollment_id = se.id
         {where}
-        GROUP BY se.sequence_type
-        ORDER BY se.sequence_type
+        GROUP BY COALESCE(se.campaign_name, se.smartlead_campaign_id)
+        ORDER BY enrolled DESC
     """), params).mappings().all()
 
     result = []
@@ -234,7 +234,7 @@ def sequences_by_type(db: Session = Depends(get_db), campaign_id: Optional[str] 
         enrolled = row["enrolled"] or 0
         replied = row["replied"] or 0
         result.append(SequenceTypeRow(
-            sequence_type=row["sequence_type"],
+            campaign_name=row["campaign_name"],
             enrolled=enrolled,
             opened=row["opened"] or 0,
             clicked=row["clicked"] or 0,
@@ -283,7 +283,7 @@ def campaigns_funnel(db: Session, campaign_id: Optional[str] = None) -> list[Cam
 def sequence_stats(db: Session = Depends(get_db)):
     rows = db.execute(text("""
         SELECT
-            se.sequence_type,
+            COALESCE(se.campaign_name, se.smartlead_campaign_id) AS campaign_name,
             se.track,
             COUNT(DISTINCT se.id)                                                          AS enrolled,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'open'  THEN ee.prospect_id END)     AS opened,
@@ -293,8 +293,8 @@ def sequence_stats(db: Session = Depends(get_db)):
             COUNT(DISTINCT CASE WHEN se.status = 'opted_out' THEN se.id END)              AS opted_out
         FROM sequence_enrollments se
         LEFT JOIN email_events ee ON ee.enrollment_id = se.id
-        GROUP BY se.sequence_type, se.track
-        ORDER BY se.sequence_type, se.track
+        GROUP BY COALESCE(se.campaign_name, se.smartlead_campaign_id), se.track
+        ORDER BY enrolled DESC, se.track
     """)).mappings().all()
 
     result = []
@@ -302,7 +302,7 @@ def sequence_stats(db: Session = Depends(get_db)):
         enrolled = row["enrolled"] or 0
         replied = row["replied"] or 0
         result.append(SequenceRow(
-            sequence_type=row["sequence_type"],
+            campaign_name=row["campaign_name"],
             track=row["track"],
             enrolled=enrolled,
             opened=row["opened"] or 0,

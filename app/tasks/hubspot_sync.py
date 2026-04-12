@@ -157,7 +157,7 @@ def sync_to_hubspot():
                         prospect_name=prospect_name,
                         prospect_email=prospect.email,
                         company=prospect.company,
-                        sequence_type=enrollment.sequence_type if enrollment else "unknown",
+                        campaign_name=enrollment.campaign_name if enrollment else None,
                         track=enrollment.track if enrollment else "unknown",
                         events=event_dicts,
                     )
