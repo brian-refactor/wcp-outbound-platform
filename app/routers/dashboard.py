@@ -149,6 +149,19 @@ def activity_fragment(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/fragments/zb-credits", response_class=HTMLResponse)
+def zb_credits_fragment(request: Request, db: Session = Depends(get_db)):
+    credits = zerobounce.get_credits()
+    used = db.query(func.count(Prospect.id)).filter(
+        Prospect.email_validated_at.is_not(None)
+    ).scalar() or 0
+    low = 0 <= credits < 500
+    return templates.TemplateResponse(
+        "dashboard/fragments/zb_credits.html",
+        {"request": request, "credits": credits, "used": used, "low": low},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Prospects list
 # ---------------------------------------------------------------------------

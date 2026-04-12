@@ -53,7 +53,7 @@
   {% if intro_missing_count > 0 %}
   <form method="post" action="/dashboard/prospects/batch-generate-intro">
     <button type="submit"
-            onclick="return confirm('Generate personalized intros for {{ intro_missing_count }} prospect{{ \'s\' if intro_missing_count != 1 else \'\' }} without one? This may take a moment.')"
+            onclick="return confirm('Generate personalized intros for {{ intro_missing_count }} prospect(s) without one? This may take a moment.')"
             class="rounded-lg border border-indigo-300 text-indigo-700 bg-indigo-50 px-4 py-2 text-sm font-medium hover:bg-indigo-100 transition-colors flex items-center gap-2">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
