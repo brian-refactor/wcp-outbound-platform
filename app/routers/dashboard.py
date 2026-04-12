@@ -26,6 +26,7 @@ from app.models.email_event import EmailEvent
 from app.models.prospect import Prospect
 from app.models.sequence_enrollment import SequenceEnrollment
 from app.routers.stats import (
+    campaigns_funnel,
     overview_stats,
     recent_events,
     sends_by_domain,
@@ -113,7 +114,7 @@ def dashboard_overview(
     except Exception:
         pass
     stats = overview_stats(db=db, campaign_id=campaign_id)
-    seq_by_type = sequences_by_type(db=db, campaign_id=campaign_id)
+    funnel = campaigns_funnel(db=db, campaign_id=campaign_id)
     events = recent_events(limit=20, db=db, campaign_id=campaign_id)
     zb_credits = get_credits()
     zb_used = db.query(func.count(ProspectModel.id)).filter(
@@ -124,7 +125,7 @@ def dashboard_overview(
         {
             "request": request,
             "stats": stats,
-            "sequences": seq_by_type,
+            "funnel": funnel,
             "events": events,
             "zb_credits": zb_credits,
             "zb_used": zb_used,

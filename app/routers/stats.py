@@ -51,6 +51,15 @@ class SequenceTypeRow(BaseModel):
     reply_rate: float
 
 
+class CampaignFunnelRow(BaseModel):
+    label: str
+    enrolled: int
+    opened: int
+    clicked: int
+    replied: int
+    reply_rate: float
+
+
 class DomainSendRow(BaseModel):
     domain: str
     total_sent: int
@@ -232,6 +241,39 @@ def sequences_by_type(db: Session = Depends(get_db), campaign_id: Optional[str] 
             replied=replied,
             standard_count=row["standard_count"] or 0,
             high_intent_count=row["high_intent_count"] or 0,
+            reply_rate=round(replied / enrolled * 100, 1) if enrolled > 0 else 0.0,
+        ))
+    return result
+
+
+def campaigns_funnel(db: Session, campaign_id: Optional[str] = None) -> list[CampaignFunnelRow]:
+    """Funnel grouped by campaign name — used for the overview chart."""
+    where = "WHERE se.smartlead_campaign_id = :campaign_id" if campaign_id else ""
+    params = {"campaign_id": campaign_id} if campaign_id else {}
+    rows = db.execute(text(f"""
+        SELECT
+            COALESCE(se.campaign_name, se.smartlead_campaign_id)              AS label,
+            COUNT(DISTINCT se.id)                                              AS enrolled,
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'open'  THEN ee.prospect_id END) AS opened,
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'click' THEN ee.prospect_id END) AS clicked,
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN ee.prospect_id END) AS replied
+        FROM sequence_enrollments se
+        LEFT JOIN email_events ee ON ee.enrollment_id = se.id
+        {where}
+        GROUP BY COALESCE(se.campaign_name, se.smartlead_campaign_id)
+        ORDER BY enrolled DESC
+    """), params).mappings().all()
+
+    result = []
+    for row in rows:
+        enrolled = row["enrolled"] or 0
+        replied = row["replied"] or 0
+        result.append(CampaignFunnelRow(
+            label=row["label"],
+            enrolled=enrolled,
+            opened=row["opened"] or 0,
+            clicked=row["clicked"] or 0,
+            replied=replied,
             reply_rate=round(replied / enrolled * 100, 1) if enrolled > 0 else 0.0,
         ))
     return result

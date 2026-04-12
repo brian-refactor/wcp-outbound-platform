@@ -122,7 +122,7 @@
   {# Funnel chart #}
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
     <div class="flex items-start justify-between mb-4">
-      <h2 class="text-sm font-semibold text-gray-700">Funnel by Sequence Type</h2>
+      <h2 class="text-sm font-semibold text-gray-700">Funnel by Campaign</h2>
       {% if stats.high_intent_upgrades > 0 %}
       <div class="text-right">
         <div class="text-lg font-bold text-yellow-600">{{ stats.high_intent_upgrades }}</div>
@@ -130,15 +130,15 @@
       </div>
       {% endif %}
     </div>
-    {% if sequences %}
+    {% if funnel %}
     <canvas id="funnelChart" height="200"></canvas>
     <script>
       (function() {
-        const labels  = {{ sequences | map(attribute='sequence_type') | list | tojson }};
-        const enrolled = {{ sequences | map(attribute='enrolled') | list | tojson }};
-        const opened   = {{ sequences | map(attribute='opened')   | list | tojson }};
-        const clicked  = {{ sequences | map(attribute='clicked')  | list | tojson }};
-        const replied  = {{ sequences | map(attribute='replied')  | list | tojson }};
+        const labels  = {{ funnel | map(attribute='label') | list | tojson }};
+        const enrolled = {{ funnel | map(attribute='enrolled') | list | tojson }};
+        const opened   = {{ funnel | map(attribute='opened')   | list | tojson }};
+        const clicked  = {{ funnel | map(attribute='clicked')  | list | tojson }};
+        const replied  = {{ funnel | map(attribute='replied')  | list | tojson }};
 
         new Chart(document.getElementById('funnelChart'), {
           type: 'bar',
