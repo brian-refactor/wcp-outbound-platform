@@ -161,6 +161,7 @@ def dashboard_prospects(
     wealth_tier: Optional[str] = Query(None),
     enrolled: Optional[str] = Query(None),  # "yes" | "no"
     email_validation: Optional[str] = Query(None),  # valid | invalid | catch-all | unknown | none
+    campaign_id: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     db: Session = Depends(get_db),
 ):
@@ -256,6 +257,16 @@ def dashboard_prospects(
         base_query += " AND p.email_validation_status = :email_validation"
         params["email_validation"] = email_validation
 
+    if campaign_id:
+        base_query += """
+            AND EXISTS (
+                SELECT 1 FROM sequence_enrollments se2
+                WHERE se2.prospect_id = p.id
+                  AND se2.smartlead_campaign_id = :campaign_id
+            )
+        """
+        params["campaign_id"] = campaign_id
+
     count_sql = f"SELECT COUNT(*) FROM ({base_query}) AS sub"
     total = db.execute(text(count_sql), params).scalar() or 0
 
@@ -286,6 +297,7 @@ def dashboard_prospects(
             "total": total,
             "total_pages": total_pages,
             "campaigns": campaigns,
+            "selected_campaign_id": campaign_id or "",
             "sequence_types": VALID_SEQUENCE_TYPES,
             "active_page": "prospects",
         },

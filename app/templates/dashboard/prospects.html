@@ -55,6 +55,15 @@
     <option value="no"  {% if enrolled_filter == 'no'  %}selected{% endif %}>Not enrolled</option>
     <option value="yes" {% if enrolled_filter == 'yes' %}selected{% endif %}>Enrolled</option>
   </select>
+  <select name="campaign_id"
+          class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <option value="" {% if not selected_campaign_id %}selected{% endif %}>All campaigns</option>
+    {% for c in campaigns %}
+    <option value="{{ c.id }}" {% if selected_campaign_id == c.id|string %}selected{% endif %}>
+      {{ c.name }}
+    </option>
+    {% endfor %}
+  </select>
   <select name="status"
           class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
     <option value="" {% if not status_filter %}selected{% endif %}>All statuses</option>
@@ -95,7 +104,7 @@
           class="rounded-lg bg-indigo-600 text-white px-5 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
     Filter
   </button>
-  {% if search or status_filter or investor_type_filter or wealth_tier_filter or enrolled_filter %}
+  {% if search or status_filter or investor_type_filter or wealth_tier_filter or enrolled_filter or selected_campaign_id %}
   <a href="/dashboard/prospects"
      class="rounded-lg border border-gray-300 text-gray-600 px-4 py-2 text-sm hover:bg-gray-50 transition-colors">
     Clear
@@ -111,6 +120,9 @@
   {% if investor_type_filter %} · type: {{ investor_type_filter }}{% endif %}
   {% if wealth_tier_filter %} · tier: {{ wealth_tier_filter }}{% endif %}
   {% if enrolled_filter %} · {{ 'enrolled' if enrolled_filter == 'yes' else 'not enrolled' }}{% endif %}
+  {% if selected_campaign_id %}
+    {% for c in campaigns %}{% if c.id|string == selected_campaign_id %} · campaign: {{ c.name }}{% endif %}{% endfor %}
+  {% endif %}
 </div>
 
 {# ── Table (wrapped in form for bulk enroll) ── #}
