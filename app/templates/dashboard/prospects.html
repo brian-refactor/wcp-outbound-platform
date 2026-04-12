@@ -19,6 +19,18 @@
 </div>
 {% endif %}
 
+{# ── Batch intro result banner ── #}
+{% if request.query_params.get('batch_intro') %}
+<div class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+  </svg>
+  <span class="text-sm font-medium text-green-800">
+    Generated personalized intros for {{ request.query_params.get('batch_intro') }} prospect{{ 's' if request.query_params.get('batch_intro') != '1' else '' }}.
+  </span>
+</div>
+{% endif %}
+
 {# ── Action buttons ── #}
 <div class="flex items-center justify-between mb-5">
   <div class="flex gap-2">
@@ -38,6 +50,19 @@
       Import CSV
     </a>
   </div>
+  {% if intro_missing_count > 0 %}
+  <form method="post" action="/dashboard/prospects/batch-generate-intro">
+    <button type="submit"
+            onclick="return confirm('Generate personalized intros for {{ intro_missing_count }} prospect{{ \'s\' if intro_missing_count != 1 else \'\' }} without one? This may take a moment.')"
+            class="rounded-lg border border-indigo-300 text-indigo-700 bg-indigo-50 px-4 py-2 text-sm font-medium hover:bg-indigo-100 transition-colors flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M13 10V3L4 14h7v7l9-11h-7z"/>
+      </svg>
+      Generate {{ intro_missing_count }} Missing Intro{{ 's' if intro_missing_count != 1 else '' }}
+    </button>
+  </form>
+  {% endif %}
 </div>
 
 {# ── Search + Filter bar ── #}
@@ -100,11 +125,17 @@
     <option value="UHNWI"         {% if wealth_tier_filter == 'UHNWI'         %}selected{% endif %}>UHNWI</option>
     <option value="institutional" {% if wealth_tier_filter == 'institutional' %}selected{% endif %}>Institutional</option>
   </select>
+  <select name="intro"
+          class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <option value=""        {% if not intro_filter         %}selected{% endif %}>All intros</option>
+    <option value="has"     {% if intro_filter == 'has'    %}selected{% endif %}>Has intro</option>
+    <option value="missing" {% if intro_filter == 'missing'%}selected{% endif %}>Missing intro</option>
+  </select>
   <button type="submit"
           class="rounded-lg bg-indigo-600 text-white px-5 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
     Filter
   </button>
-  {% if search or status_filter or investor_type_filter or wealth_tier_filter or enrolled_filter or selected_campaign_id %}
+  {% if search or status_filter or investor_type_filter or wealth_tier_filter or enrolled_filter or selected_campaign_id or intro_filter %}
   <a href="/dashboard/prospects"
      class="rounded-lg border border-gray-300 text-gray-600 px-4 py-2 text-sm hover:bg-gray-50 transition-colors">
     Clear
@@ -120,6 +151,7 @@
   {% if investor_type_filter %} · type: {{ investor_type_filter }}{% endif %}
   {% if wealth_tier_filter %} · tier: {{ wealth_tier_filter }}{% endif %}
   {% if enrolled_filter %} · {{ 'enrolled' if enrolled_filter == 'yes' else 'not enrolled' }}{% endif %}
+  {% if intro_filter %} · intro: {{ intro_filter }}{% endif %}
   {% if selected_campaign_id %}
     {% for c in campaigns %}{% if c.id|string == selected_campaign_id %} · campaign: {{ c.name }}{% endif %}{% endfor %}
   {% endif %}
@@ -146,6 +178,7 @@
                    onchange="toggleAll(this)"/>
           </th>
           <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Prospect</th>
+          <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide w-8" title="Personalized intro">AI</th>
           <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Company</th>
           <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Type / Tier</th>
           <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Campaigns</th>
@@ -165,6 +198,13 @@
           <td class="px-4 py-3 cursor-pointer" onclick="window.location='/dashboard/prospects/{{ p.id }}'">
             <div class="font-medium text-gray-900">{{ p.first_name or '' }} {{ p.last_name or '' }}</div>
             <div class="text-xs text-gray-400">{{ p.email }}</div>
+          </td>
+          <td class="px-4 py-3 cursor-pointer" onclick="window.location='/dashboard/prospects/{{ p.id }}'">
+            {% if p.has_intro %}
+            <span title="Has personalized intro" class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 text-xs font-bold">✓</span>
+            {% else %}
+            <span class="text-gray-200 text-xs">—</span>
+            {% endif %}
           </td>
           <td class="px-4 py-3 text-gray-600 cursor-pointer" onclick="window.location='/dashboard/prospects/{{ p.id }}'">
             {{ p.company or '-' }}
@@ -251,6 +291,10 @@
                 class="rounded-lg bg-indigo-600 text-white px-5 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
           Enroll Selected
         </button>
+        <button type="button" onclick="submitBulkGenerateIntro()"
+                class="rounded-lg border border-indigo-300 text-indigo-700 bg-indigo-50 px-4 py-2 text-sm font-medium hover:bg-indigo-100 transition-colors">
+          Generate Intros
+        </button>
         <button type="button" onclick="clearSelection()"
                 class="rounded-lg border border-gray-300 text-gray-600 px-4 py-2 text-sm hover:bg-gray-50 transition-colors">
           Cancel
@@ -322,11 +366,17 @@
 
   function submitBulkEnroll() {
     const campaignId = document.getElementById('bulk-campaign').value;
-    const seqType = document.getElementById('bulk-seq-type').value;
     if (!campaignId) { alert('Please select a campaign.'); return; }
-    if (!seqType) { alert('Please select a sequence type.'); return; }
     const count = document.querySelectorAll('.prospect-cb:checked').length;
     if (!confirm('Enroll ' + count + ' prospect(s) in the selected campaign?')) return;
+    document.getElementById('bulk-form').setAttribute('action', '/dashboard/prospects/bulk-enroll');
+    document.getElementById('bulk-form').submit();
+  }
+
+  function submitBulkGenerateIntro() {
+    const count = document.querySelectorAll('.prospect-cb:checked').length;
+    if (!confirm('Generate personalized intros for ' + count + ' selected prospect(s)?')) return;
+    document.getElementById('bulk-form').setAttribute('action', '/dashboard/prospects/batch-generate-intro');
     document.getElementById('bulk-form').submit();
   }
 </script>

@@ -163,6 +163,7 @@ def dashboard_prospects(
     enrolled: Optional[str] = Query(None),  # "yes" | "no"
     email_validation: Optional[str] = Query(None),  # valid | invalid | catch-all | unknown | none
     campaign_id: Optional[str] = Query(None),
+    intro: Optional[str] = Query(None),  # "has" | "missing"
     page: int = Query(1, ge=1),
     db: Session = Depends(get_db),
 ):
@@ -197,6 +198,7 @@ def dashboard_prospects(
             p.email_validation_status,
             p.investor_type,
             p.wealth_tier,
+            (p.personalized_intro IS NOT NULL)                                              AS has_intro,
             -- HubSpot status: deal > contact > pending > none
             CASE
                 WHEN EXISTS (SELECT 1 FROM email_events ee
@@ -266,6 +268,11 @@ def dashboard_prospects(
         """
         params["campaign_id"] = campaign_id
 
+    if intro == "has":
+        base_query += " AND p.personalized_intro IS NOT NULL"
+    elif intro == "missing":
+        base_query += " AND p.personalized_intro IS NULL"
+
     count_sql = f"SELECT COUNT(*) FROM ({base_query}) AS sub"
     total = db.execute(text(count_sql), params).scalar() or 0
 
@@ -282,6 +289,10 @@ def dashboard_prospects(
     except Exception:
         pass
 
+    intro_missing_count = db.execute(
+        text("SELECT COUNT(*) FROM prospects WHERE personalized_intro IS NULL")
+    ).scalar() or 0
+
     return templates.TemplateResponse(
         "dashboard/prospects.html",
         {
@@ -292,14 +303,44 @@ def dashboard_prospects(
             "investor_type_filter": investor_type or "",
             "wealth_tier_filter": wealth_tier or "",
             "enrolled_filter": enrolled or "",
+            "intro_filter": intro or "",
             "page": page,
             "total": total,
             "total_pages": total_pages,
             "campaigns": campaigns,
             "selected_campaign_id": campaign_id or "",
-
+            "intro_missing_count": intro_missing_count,
             "active_page": "prospects",
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Batch generate personalized intros
+# ---------------------------------------------------------------------------
+
+@router.post("/prospects/batch-generate-intro", response_class=HTMLResponse)
+def batch_generate_intro(
+    request: Request,
+    prospect_ids: Optional[list[str]] = Form(None),
+    db: Session = Depends(get_db),
+):
+    if prospect_ids:
+        prospects = db.query(Prospect).filter(Prospect.id.in_(prospect_ids)).all()
+    else:
+        prospects = db.query(Prospect).filter(Prospect.personalized_intro.is_(None)).limit(100).all()
+
+    generated = 0
+    for prospect in prospects:
+        had_intro = bool(prospect.personalized_intro)
+        _ensure_personalized_intro(prospect, db)
+        if not had_intro:
+            generated += 1
+
+    db.commit()
+    return RedirectResponse(
+        f"/dashboard/prospects?batch_intro={generated}",
+        status_code=303,
     )
 
 
