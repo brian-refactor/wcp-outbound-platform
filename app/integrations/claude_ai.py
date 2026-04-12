@@ -54,10 +54,11 @@ def generate_personalized_intro(prospect) -> str:
     prompt = f"""You are helping write outbound cold emails for Willow Creek Partners, a private markets investment firm that connects accredited investors with institutional-quality private equity and real estate opportunities.
 
 Write a 1–2 sentence personalized opening for a cold email to this prospect. The opener should:
-- Feel genuine and specific to this person — reference their role, geography, or investment focus naturally
+- ONLY reference facts explicitly listed in the prospect profile below — do NOT infer, assume, or fabricate anything not stated
 - NOT mention Willow Creek Partners or any fund names (the rest of the email does that)
 - NOT start with "I hope this email finds you well" or similar generic openers
-- Lead naturally into a sentence about alternative investment opportunities
+- NOT claim to know anything about their current portfolio, activity, or behavior
+- Be a natural, professional intro that acknowledges who they are based only on known facts
 - Be professional but conversational in tone
 
 Prospect profile:
