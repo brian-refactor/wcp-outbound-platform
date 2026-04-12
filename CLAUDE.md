@@ -200,7 +200,7 @@ prospect_id (nullable), enrollment_id (nullable), event_type (sent/open/click/re
 - Custom fields at enrollment must be nested under `"custom_fields"` key — NOT flat on the lead object.
 - All event type variants are mapped (e.g. `EMAIL_REPLY` and `EMAIL_REPLIED` both resolve to `"reply"`).
 - Campaigns must be created manually in Smartlead UI. Campaign IDs are integers.
-- `personalized_intro` is passed as a custom field — add `{{personalized_intro}}` to email templates in Smartlead.
+- `personalized_intro` is passed as a custom field at enrollment. Use `{{custom_fields.personalized_intro}}` in Smartlead email templates (not `{{personalized_intro}}` — that syntax is for standard lead fields only). Smartlead auto-creates the custom field definition on first enrollment that includes it.
 
 ### HubSpot
 - Auth: Private App token (Bearer). Create under Settings → Integrations → Private Apps.
@@ -220,7 +220,7 @@ prospect_id (nullable), enrollment_id (nullable), event_type (sent/open/click/re
 - Model: `claude-haiku-4-5-20251001` (fast and cheap for short generations).
 - `generate_personalized_intro(prospect)` in `app/integrations/claude_ai.py` generates a 1–2 sentence personalized email opener using investor_type, geography, wealth_tier, asset_class_preference, title, company.
 - Called automatically at enrollment time via `_ensure_personalized_intro()` — generates once, reuses after.
-- If API key is missing or generation fails, falls back to a rule-based opener based on investor_type/asset_class/geography so the Smartlead `{{personalized_intro}}` variable is never blank.
+- If API key is missing or generation fails, falls back to a rule-based opener based on investor_type/asset_class/geography so the Smartlead `{{custom_fields.personalized_intro}}` variable is never blank.
 - Can be generated/regenerated on demand from the prospect detail page (HTMX button).
 - Batch generation available from prospects list: "Generate N Missing Intros" button (processes up to 100 at a time).
 
@@ -271,9 +271,9 @@ Open and click webhooks were not firing in earlier testing (sent to Smartlead su
 - [ ] High Intent upgrade: ≥ 1 click older than 48h AND no reply → scan upgrades track
 
 ### Pending Configuration (Manual)
-- [ ] **Negative reply keywords in Smartlead** — In each campaign's settings, add: `"not interested"`, `"unsubscribe"`, `"stop"`, `"remove me"` so they fire `LEAD_UNSUBSCRIBED` instead of `EMAIL_REPLIED`.
-- [ ] **Add `{{personalized_intro}}` to Smartlead email templates** — place it where the personalized opener should appear.
-- [ ] **Set `ANTHROPIC_API_KEY`** on Railway web service.
+- [x] **Negative reply keywords in Smartlead** — set via MCP on both campaigns: `"not interested,unsubscribe,stop,remove me"` in `unsubscribe_text`. Verify in Smartlead UI.
+- [x] **Set `ANTHROPIC_API_KEY`** on Railway web service — done and confirmed working.
+- [ ] **Add `{{custom_fields.personalized_intro}}` to Smartlead email templates** — place it as the opening line of email body.
 
 ### Future Features
 - [ ] Spam event type mapping — waiting on Smartlead to confirm event name for spam reports

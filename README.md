@@ -105,7 +105,7 @@ Core record for every investor contact.
 | accredited_status | str | `unverified` / `pending` / `verified` / `failed` |
 | email_validation_status | str | `valid` / `invalid` / `catch-all` / `unknown` — set by ZeroBounce |
 | email_validated_at | timestamptz | When ZeroBounce last validated this email |
-| personalized_intro | text | AI-generated email opener (Claude). Passed to Smartlead as `{{personalized_intro}}` custom field. Falls back to rule-based opener if Claude unavailable. |
+| personalized_intro | text | AI-generated email opener (Claude). Passed to Smartlead as `{{custom_fields.personalized_intro}}` custom field. Falls back to rule-based opener if Claude unavailable. |
 | created_at, updated_at | timestamptz | |
 
 ### `sequence_enrollments`
@@ -176,7 +176,7 @@ When matched, the prospect is enrolled in the configured High Intent campaign in
 - Custom fields (geography, investor type, wealth tier, personalized_intro, etc.) are passed at enrollment under `"custom_fields"` — not flat on the lead object.
 - Supported event types (all Smartlead aliases handled):
   `EMAIL_SENT`, `EMAIL_OPEN`/`EMAIL_OPENED`, `EMAIL_LINK_CLICKED`/`EMAIL_CLICKED`/`EMAIL_LINK_CLICK`, `EMAIL_REPLIED`/`EMAIL_REPLY`, `EMAIL_BOUNCED`/`EMAIL_BOUNCE`, `LEAD_UNSUBSCRIBED`/`LEAD_UNSUBSCRIBE`, `LEAD_COMPLETED_SEQUENCE`/`SEQUENCE_COMPLETED`
-- To use personalization: add `{{personalized_intro}}` to the email body in your Smartlead campaign templates.
+- To use personalization: add `{{custom_fields.personalized_intro}}` to the email body in your Smartlead campaign templates. Smartlead auto-creates the custom field definition on first enrollment.
 
 ### HubSpot
 
@@ -279,10 +279,19 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 # NOTE: do NOT use --reload; it serves stale code unreliably
 ```
 
-### Running Celery Locally (Windows)
+### Running Celery Locally
 
-On Windows, Celery requires `--pool=solo`. Beat must run separately.
+**Mac/Linux:**
+```bash
+# Worker + beat combined (Linux supports prefork)
+celery -A app.worker worker --beat -l info --pool=solo
 
+# Or split into two terminals:
+celery -A app.worker worker -l info
+celery -A app.worker beat -l info
+```
+
+**Windows:** Celery requires `--pool=solo` and beat must run separately.
 ```bash
 # Worker
 venv\Scripts\celery.exe -A app.worker worker -l info --pool=solo
@@ -377,9 +386,9 @@ Open/click webhooks were not firing in earlier testing (Smartlead support ticket
 - [ ] High Intent upgrade: ≥ 1 click (48h+) + no reply → 15-min scan upgrades track
 
 ### Pending Manual Configuration
-- [ ] **Negative reply keywords in Smartlead** — add `"not interested"`, `"unsubscribe"`, `"stop"`, `"remove me"` to each campaign's reply keywords so negative replies fire `LEAD_UNSUBSCRIBED` not `EMAIL_REPLIED`.
-- [ ] **Add `{{personalized_intro}}` to Smartlead email templates** — place it as the opening line of email body.
-- [ ] **Set `ANTHROPIC_API_KEY`** on Railway web service to enable Claude-powered intros.
+- [x] **Negative reply keywords in Smartlead** — set on both campaigns via MCP: `"not interested,unsubscribe,stop,remove me"`. Verify in Smartlead UI.
+- [x] **Set `ANTHROPIC_API_KEY`** on Railway web service — done and confirmed working.
+- [ ] **Add `{{custom_fields.personalized_intro}}` to Smartlead email templates** — place it as the opening line of each email body.
 
 ### Future Enhancements
 - [ ] Spam event type mapping — waiting on Smartlead to confirm event name for spam reports
