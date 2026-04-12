@@ -21,7 +21,7 @@
 </div>
 
 {# ── Engagement rates row ── #}
-<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
 
   <div class="rounded-xl border border-gray-200 bg-sky-50 px-5 py-4 shadow-sm">
     <div class="flex items-end gap-2">
@@ -29,6 +29,14 @@
       <div class="text-sm font-semibold text-sky-400 mb-1">{{ stats.open_rate }}%</div>
     </div>
     <div class="text-xs font-medium text-gray-500 mt-1">Emails Opened</div>
+  </div>
+
+  <div class="rounded-xl border border-gray-200 bg-purple-50 px-5 py-4 shadow-sm">
+    <div class="flex items-end gap-2">
+      <div class="text-3xl font-bold text-purple-600">{{ stats.total_clicked }}</div>
+      <div class="text-sm font-semibold text-purple-400 mb-1">{{ stats.click_rate }}%</div>
+    </div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Link Clicks</div>
   </div>
 
   <div class="rounded-xl border border-gray-200 bg-green-50 px-5 py-4 shadow-sm">

@@ -34,6 +34,7 @@ class OverviewStats(BaseModel):
     hubspot_pending: int
     high_intent_upgrades: int
     open_rate: float
+    click_rate: float
     reply_rate: float
     bounce_rate: float
     spam_rate: float
@@ -176,6 +177,7 @@ def overview_stats(db: Session = Depends(get_db)):
         hubspot_pending=hubspot_pending,
         high_intent_upgrades=high_intent_upgrades,
         open_rate=rate(total_opened),
+        click_rate=rate(total_clicked),
         reply_rate=rate(total_replied),
         bounce_rate=rate(total_bounced),
         spam_rate=rate(total_spam),
