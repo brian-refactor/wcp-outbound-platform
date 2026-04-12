@@ -916,7 +916,13 @@ def dashboard_mailboxes(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/sync", response_class=HTMLResponse)
 def dashboard_sync(request: Request, db: Session = Depends(get_db)):
+    from app.integrations.zerobounce import get_credits
+    from app.models.prospect import Prospect as ProspectModel
     sync = sync_stats(db=db)
+    zb_credits = get_credits()
+    zb_used = db.query(func.count(ProspectModel.id)).filter(
+        ProspectModel.email_validated_at.is_not(None)
+    ).scalar() or 0
 
     recent_synced = db.execute(text("""
         SELECT
@@ -939,5 +945,7 @@ def dashboard_sync(request: Request, db: Session = Depends(get_db)):
             "sync": sync,
             "recent_synced": recent_synced,
             "active_page": "sync",
+            "zb_credits": zb_credits,
+            "zb_used": zb_used,
         },
     )
