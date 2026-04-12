@@ -116,13 +116,14 @@
 </div>
 
 {# ── ZeroBounce Credits ── #}
-{% if zb_credits >= 0 %}
-{% set zb_low = zb_credits < 500 %}
+{% set zb_low = zb_credits >= 0 and zb_credits < 500 %}
 <div class="mt-6 rounded-xl border {{ 'border-red-200 bg-red-50' if zb_low else 'border-gray-200 bg-white' }} px-5 py-3 shadow-sm flex items-center justify-between">
   <div class="flex items-center gap-6">
     <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide">ZeroBounce</div>
     <div>
-      <span class="text-sm font-bold {{ 'text-red-600' if zb_low else 'text-gray-800' }}">{{ zb_credits }}</span>
+      <span class="text-sm font-bold {{ 'text-red-600' if zb_low else 'text-gray-800' }}">
+        {% if zb_credits >= 0 %}{{ zb_credits }}{% else %}—{% endif %}
+      </span>
       <span class="text-xs text-gray-500 ml-1">credits remaining</span>
     </div>
     <div class="text-gray-300">|</div>
@@ -141,6 +142,5 @@
   </div>
   {% endif %}
 </div>
-{% endif %}
 
 {% endblock %}
