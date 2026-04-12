@@ -100,12 +100,21 @@ PAGE_SIZE = 25
 
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
-def dashboard_overview(request: Request, db: Session = Depends(get_db)):
+def dashboard_overview(
+    request: Request,
+    db: Session = Depends(get_db),
+    campaign_id: Optional[str] = Query(None),
+):
     from app.integrations.zerobounce import get_credits
     from app.models.prospect import Prospect as ProspectModel
-    stats = overview_stats(db=db)
-    seq_by_type = sequences_by_type(db=db)
-    events = recent_events(limit=20, db=db)
+    campaigns = []
+    try:
+        campaigns = smartlead.list_campaigns()
+    except Exception:
+        pass
+    stats = overview_stats(db=db, campaign_id=campaign_id)
+    seq_by_type = sequences_by_type(db=db, campaign_id=campaign_id)
+    events = recent_events(limit=20, db=db, campaign_id=campaign_id)
     zb_credits = get_credits()
     zb_used = db.query(func.count(ProspectModel.id)).filter(
         ProspectModel.email_validated_at.is_not(None)
@@ -120,6 +129,8 @@ def dashboard_overview(request: Request, db: Session = Depends(get_db)):
             "zb_credits": zb_credits,
             "zb_used": zb_used,
             "active_page": "overview",
+            "campaigns": campaigns,
+            "selected_campaign_id": campaign_id,
         },
     )
 

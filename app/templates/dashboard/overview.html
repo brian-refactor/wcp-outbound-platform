@@ -4,6 +4,25 @@
 
 {% block content %}
 
+{# ── Campaign filter ── #}
+<div class="flex items-center justify-end mb-4 gap-2">
+  {% if selected_campaign_id %}
+  <a href="/dashboard/"
+     class="text-xs text-gray-400 hover:text-gray-600 transition-colors">Clear filter</a>
+  {% endif %}
+  <form method="get" action="/dashboard/">
+    <select name="campaign_id" onchange="this.form.submit()"
+            class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <option value="">All Campaigns</option>
+      {% for c in campaigns %}
+      <option value="{{ c.id }}" {% if selected_campaign_id == c.id|string %}selected{% endif %}>
+        {{ c.name }}
+      </option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
 {# ── Top KPI row ── #}
 <div class="grid grid-cols-3 gap-4 mb-4">
   <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">

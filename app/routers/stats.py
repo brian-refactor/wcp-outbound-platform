@@ -90,72 +90,87 @@ class RecentEvent(BaseModel):
 
 
 @router.get("/overview", response_model=OverviewStats)
-def overview_stats(db: Session = Depends(get_db)):
-    total_prospects = db.query(func.count(Prospect.id)).scalar() or 0
+def overview_stats(db: Session = Depends(get_db), campaign_id: Optional[str] = None):
+    # Build reusable filters when scoped to a single campaign
+    if campaign_id:
+        enr_ids_q = db.query(SequenceEnrollment.id).filter(
+            SequenceEnrollment.smartlead_campaign_id == campaign_id
+        )
+        ev_f = EmailEvent.enrollment_id.in_(enr_ids_q)
+        enr_f = SequenceEnrollment.smartlead_campaign_id == campaign_id
+        total_prospects = (
+            db.query(func.count(func.distinct(SequenceEnrollment.prospect_id)))
+            .filter(enr_f)
+            .scalar() or 0
+        )
+    else:
+        ev_f = None
+        enr_f = None
+        total_prospects = db.query(func.count(Prospect.id)).scalar() or 0
+
+    def eq(q, *extra):
+        return q.filter(*[f for f in extra if f is not None])
+
     active_enrollments = (
-        db.query(func.count(SequenceEnrollment.id))
-        .filter(SequenceEnrollment.status == "active")
+        eq(db.query(func.count(SequenceEnrollment.id)), enr_f,
+           SequenceEnrollment.status == "active")
         .scalar() or 0
     )
     total_sent = (
-        db.query(func.count(EmailEvent.id))
-        .filter(EmailEvent.event_type == "sent")
+        eq(db.query(func.count(EmailEvent.id)), ev_f,
+           EmailEvent.event_type == "sent")
         .scalar() or 0
     )
     total_opened = (
-        db.query(func.count(func.distinct(EmailEvent.prospect_id)))
-        .filter(EmailEvent.event_type == "open")
+        eq(db.query(func.count(func.distinct(EmailEvent.prospect_id))), ev_f,
+           EmailEvent.event_type == "open")
         .scalar() or 0
     )
     total_clicked = (
-        db.query(func.count(func.distinct(EmailEvent.prospect_id)))
-        .filter(EmailEvent.event_type == "click")
+        eq(db.query(func.count(func.distinct(EmailEvent.prospect_id))), ev_f,
+           EmailEvent.event_type == "click")
         .scalar() or 0
     )
     total_replied = (
-        db.query(func.count(func.distinct(EmailEvent.prospect_id)))
-        .filter(EmailEvent.event_type == "reply")
+        eq(db.query(func.count(func.distinct(EmailEvent.prospect_id))), ev_f,
+           EmailEvent.event_type == "reply")
         .scalar() or 0
     )
     total_bounced = (
-        db.query(func.count(SequenceEnrollment.id))
-        .filter(SequenceEnrollment.status == "bounced")
+        eq(db.query(func.count(SequenceEnrollment.id)), enr_f,
+           SequenceEnrollment.status == "bounced")
         .scalar() or 0
     )
     total_spam = (
-        db.query(func.count(func.distinct(EmailEvent.prospect_id)))
-        .filter(EmailEvent.event_type == "spam")
+        eq(db.query(func.count(func.distinct(EmailEvent.prospect_id))), ev_f,
+           EmailEvent.event_type == "spam")
         .scalar() or 0
     )
     total_opted_out = (
-        db.query(func.count(SequenceEnrollment.id))
-        .filter(SequenceEnrollment.status == "opted_out")
+        eq(db.query(func.count(SequenceEnrollment.id)), enr_f,
+           SequenceEnrollment.status == "opted_out")
         .scalar() or 0
     )
     total_completed = (
-        db.query(func.count(SequenceEnrollment.id))
-        .filter(SequenceEnrollment.status == "completed")
+        eq(db.query(func.count(SequenceEnrollment.id)), enr_f,
+           SequenceEnrollment.status == "completed")
         .scalar() or 0
     )
     hubspot_deals = (
-        db.query(func.count(func.distinct(EmailEvent.prospect_id)))
-        .filter(
-            EmailEvent.event_type == "reply",
-            EmailEvent.hubspot_synced_at.is_not(None),
-        )
+        eq(db.query(func.count(func.distinct(EmailEvent.prospect_id))), ev_f,
+           EmailEvent.event_type == "reply",
+           EmailEvent.hubspot_synced_at.is_not(None))
         .scalar() or 0
     )
     hubspot_pending = (
-        db.query(func.count(EmailEvent.id))
-        .filter(
-            EmailEvent.hubspot_synced_at.is_(None),
-            EmailEvent.prospect_id.is_not(None),
-        )
+        eq(db.query(func.count(EmailEvent.id)), ev_f,
+           EmailEvent.hubspot_synced_at.is_(None),
+           EmailEvent.prospect_id.is_not(None))
         .scalar() or 0
     )
     high_intent_upgrades = (
-        db.query(func.count(SequenceEnrollment.id))
-        .filter(SequenceEnrollment.high_intent_switched_at.is_not(None))
+        eq(db.query(func.count(SequenceEnrollment.id)), enr_f,
+           SequenceEnrollment.high_intent_switched_at.is_not(None))
         .scalar() or 0
     )
 
@@ -185,9 +200,11 @@ def overview_stats(db: Session = Depends(get_db)):
 
 
 @router.get("/sequences/by-type", response_model=list[SequenceTypeRow])
-def sequences_by_type(db: Session = Depends(get_db)):
+def sequences_by_type(db: Session = Depends(get_db), campaign_id: Optional[str] = None):
     """Sequence funnel grouped by type only — tracks merged. Used for overview chart."""
-    rows = db.execute(text("""
+    where = "WHERE se.smartlead_campaign_id = :campaign_id" if campaign_id else ""
+    params = {"campaign_id": campaign_id} if campaign_id else {}
+    rows = db.execute(text(f"""
         SELECT
             se.sequence_type,
             COUNT(DISTINCT se.id)                                                             AS enrolled,
@@ -198,9 +215,10 @@ def sequences_by_type(db: Session = Depends(get_db)):
             COUNT(DISTINCT CASE WHEN se.track = 'high_intent'       THEN se.id END)          AS high_intent_count
         FROM sequence_enrollments se
         LEFT JOIN email_events ee ON ee.enrollment_id = se.id
+        {where}
         GROUP BY se.sequence_type
         ORDER BY se.sequence_type
-    """)).mappings().all()
+    """), params).mappings().all()
 
     result = []
     for row in rows:
@@ -301,8 +319,13 @@ def sends_by_domain(db: Session = Depends(get_db)):
 
 
 @router.get("/events/recent", response_model=list[RecentEvent])
-def recent_events(limit: int = 50, db: Session = Depends(get_db)):
-    rows = db.execute(text("""
+def recent_events(limit: int = 50, db: Session = Depends(get_db), campaign_id: Optional[str] = None):
+    where = "WHERE se.smartlead_campaign_id = :campaign_id" if campaign_id else ""
+    join  = "JOIN sequence_enrollments se ON se.id = ee.enrollment_id" if campaign_id else ""
+    params = {"limit": min(limit, 200)}
+    if campaign_id:
+        params["campaign_id"] = campaign_id
+    rows = db.execute(text(f"""
         SELECT
             ee.id::text,
             COALESCE(p.email, 'unknown')                                         AS prospect_email,
@@ -315,9 +338,11 @@ def recent_events(limit: int = 50, db: Session = Depends(get_db)):
             ee.hubspot_synced_at
         FROM email_events ee
         LEFT JOIN prospects p ON p.id = ee.prospect_id
+        {join}
+        {where}
         ORDER BY ee.occurred_at DESC
         LIMIT :limit
-    """), {"limit": min(limit, 200)}).mappings().all()
+    """), params).mappings().all()
 
     return [
         RecentEvent(
