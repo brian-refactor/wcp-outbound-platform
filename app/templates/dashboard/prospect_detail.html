@@ -180,6 +180,37 @@
   </div>
 </div>
 
+{# ── Personalized Email Intro ── #}
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-sm font-semibold text-gray-700">Personalized Email Opener</h2>
+    <span class="text-xs text-gray-400">Smartlead variable: <code class="bg-gray-100 px-1 rounded">{{personalized_intro}}</code></span>
+  </div>
+  <div id="intro-block">
+    {% if prospect.personalized_intro %}
+    <p id="intro-text" class="text-sm text-gray-700 leading-relaxed">{{ prospect.personalized_intro }}</p>
+    <div class="mt-2 flex items-center gap-3">
+      <button hx-post="/dashboard/prospects/{{ prospect.id }}/generate-intro"
+              hx-target="#intro-block" hx-swap="outerHTML"
+              hx-indicator="#intro-spinner"
+              class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+        Regenerate
+      </button>
+      <span id="intro-spinner" class="htmx-indicator text-xs text-gray-400">Generating…</span>
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-400 mb-3">No intro generated yet.</p>
+    <button hx-post="/dashboard/prospects/{{ prospect.id }}/generate-intro"
+            hx-target="#intro-block" hx-swap="outerHTML"
+            hx-indicator="#intro-spinner"
+            class="rounded-lg bg-indigo-600 text-white px-4 py-1.5 text-xs font-medium hover:bg-indigo-700 transition-colors">
+      Generate with Claude
+    </button>
+    <span id="intro-spinner" class="htmx-indicator text-xs text-gray-400 ml-2">Generating…</span>
+    {% endif %}
+  </div>
+</div>
+
 {# ── Enrollments ── #}
 {% if enrollments %}
 <h2 class="text-sm font-semibold text-gray-700 mb-3">

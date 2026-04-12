@@ -41,6 +41,9 @@ class Prospect(Base):
         String(20), default="unverified"
     )  # unverified | pending | verified | failed
 
+    # AI-generated personalized email intro (Claude)
+    personalized_intro: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Email validation (ZeroBounce)
     # status: valid | invalid | catch-all | unknown | spamtrap | abuse | do_not_mail | disposable
     email_validation_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)

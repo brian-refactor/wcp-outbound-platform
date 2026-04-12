@@ -331,6 +331,7 @@ def prospect_bulk_enroll(
             failed.append(f"{prospect.email} (email {prospect.email_validation_status or 'not validated'})")
             continue
         try:
+            _ensure_personalized_intro(prospect, db)
             smartlead.enroll_prospect(
                 campaign_id=int(campaign_id),
                 email=prospect.email,
@@ -374,7 +375,22 @@ def _prospect_custom_fields(prospect: Prospect) -> dict:
         "investor_type":          prospect.investor_type,
         "linkedin_url":           prospect.linkedin_url,
         "phone":                  prospect.phone,
+        "personalized_intro":     prospect.personalized_intro,
     }.items() if v}
+
+
+def _ensure_personalized_intro(prospect: Prospect, db: Session) -> None:
+    """Generate and save a personalized intro if the prospect doesn't have one."""
+    if prospect.personalized_intro:
+        return
+    if not settings.anthropic_api_key:
+        return
+    try:
+        from app.integrations.claude_ai import generate_personalized_intro
+        prospect.personalized_intro = generate_personalized_intro(prospect)
+        db.flush()
+    except Exception as e:
+        logger.warning("Could not generate personalized intro for %s: %s", prospect.email, e)
 
 
 @router.get("/prospects/new", response_class=HTMLResponse)
@@ -505,6 +521,7 @@ def prospect_new_submit(
                 "Only valid emails can be enrolled."
             )
         try:
+            _ensure_personalized_intro(prospect, db)
             smartlead.enroll_prospect(
                 campaign_id=int(campaign_id),
                 email=prospect.email,
@@ -680,6 +697,38 @@ def prospect_delete(prospect_id: str, db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
+# Generate personalized intro
+# ---------------------------------------------------------------------------
+
+@router.post("/prospects/{prospect_id}/generate-intro", response_class=HTMLResponse)
+def generate_intro(prospect_id: str, request: Request, db: Session = Depends(get_db)):
+    prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
+    if not prospect:
+        return HTMLResponse("<p class='text-red-500 text-xs'>Prospect not found.</p>", status_code=404)
+    if not settings.anthropic_api_key:
+        return HTMLResponse("<p class='text-red-500 text-xs'>ANTHROPIC_API_KEY not configured.</p>", status_code=400)
+    try:
+        from app.integrations.claude_ai import generate_personalized_intro
+        prospect.personalized_intro = generate_personalized_intro(prospect)
+        db.commit()
+    except Exception as e:
+        logger.error("generate_intro failed for %s: %s", prospect_id, e)
+        return HTMLResponse(f"<p class='text-red-500 text-xs'>Generation failed: {e}</p>", status_code=500)
+
+    return HTMLResponse(f"""
+<div id="intro-block">
+  <p id="intro-text" class="text-sm text-gray-700 leading-relaxed">{prospect.personalized_intro}</p>
+  <div class="mt-2 flex items-center gap-3">
+    <button hx-post="/dashboard/prospects/{prospect_id}/generate-intro"
+            hx-target="#intro-block" hx-swap="outerHTML"
+            class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
+      Regenerate
+    </button>
+  </div>
+</div>
+""")
+
+
 # Edit prospect
 # ---------------------------------------------------------------------------
 
@@ -818,6 +867,7 @@ def prospect_edit_submit(
             )
 
         try:
+            _ensure_personalized_intro(prospect, db)
             smartlead.enroll_prospect(
                 campaign_id=int(campaign_id),
                 email=prospect.email,

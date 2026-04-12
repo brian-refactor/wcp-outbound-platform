@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # ZeroBounce
     zerobounce_api_key: str = ""  # from zerobounce.net account
 
+    # Anthropic (Claude API — personalized email intros)
+    anthropic_api_key: str = ""
+
     # API authentication
     api_key: str = ""  # X-API-Key header value; empty string disables auth in dev
 
