@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.integrations import apollo as apollo_client
 from app.integrations import edgar as edgar_client
 from app.integrations import smartlead, zerobounce
 from app.models.email_event import EmailEvent
@@ -1165,19 +1166,39 @@ def edgar_add_prospect(
             status_code=303,
         )
 
+    # Enrich via Apollo before creating the prospect
+    enriched = None
+    if first_name and last_name and company:
+        enriched = apollo_client.enrich_person(first_name, last_name, company)
+
+    email = (enriched or {}).get("email") or f"unknown_{uuid.uuid4().hex[:8]}@edgar.placeholder"
+    email_status = "unknown"
+    if enriched and enriched.get("email"):
+        email_status = "unknown"  # will be validated by ZeroBounce on next batch run
+
     prospect = Prospect(
         id=str(uuid.uuid4()),
-        email=f"unknown_{uuid.uuid4().hex[:8]}@edgar.placeholder",
+        email=email,
         first_name=first_name or None,
         last_name=last_name or None,
-        company=company or None,
-        title=title or None,
+        company=(enriched or {}).get("company") or company or None,
+        title=(enriched or {}).get("title") or title or None,
+        phone=(enriched or {}).get("phone") or None,
+        linkedin_url=(enriched or {}).get("linkedin_url") or None,
         geography=geography,
-        source="manual",
-        email_validation_status="unknown",
+        source="apollo",
+        email_validation_status=email_status,
     )
     db.add(prospect)
     db.commit()
+
+    if enriched and enriched.get("email"):
+        # Has a real email — go straight to detail page
+        return RedirectResponse(
+            url=f"/dashboard/prospects/{prospect.id}?from_edgar=1",
+            status_code=303,
+        )
+    # No email found — drop into edit form so user can fill it in
     return RedirectResponse(
         url=f"/dashboard/prospects/{prospect.id}/edit?from_edgar=1",
         status_code=303,
