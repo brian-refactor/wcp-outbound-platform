@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.integrations import edgar as edgar_client
 from app.integrations import smartlead, zerobounce
 from app.models.email_event import EmailEvent
 from app.models.prospect import Prospect
@@ -1080,4 +1081,104 @@ def dashboard_sync(request: Request, db: Session = Depends(get_db)):
             "zb_credits": zb_credits,
             "zb_used": zb_used,
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# EDGAR Form D lead finder
+# ---------------------------------------------------------------------------
+
+@router.get("/edgar", response_class=HTMLResponse)
+def edgar_search(
+    request: Request,
+    keywords: str = Query(""),
+    state: str = Query(""),
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    offset: int = Query(0),
+):
+    rows = []
+    total = 0
+    error = None
+    searched = any([keywords, state, start_date, end_date])
+
+    if searched:
+        try:
+            filings, total = edgar_client.search_form_d(
+                keywords=keywords,
+                state=state,
+                start_date=start_date,
+                end_date=end_date,
+                offset=offset,
+                size=15,
+            )
+            rows = edgar_client.enrich_filings(filings)
+        except Exception as e:
+            logger.error("EDGAR search error: %s", e)
+            error = "Failed to reach EDGAR — try again in a moment."
+
+    return templates.TemplateResponse(
+        "dashboard/edgar.html",
+        {
+            "request": request,
+            "active_page": "edgar",
+            "rows": rows,
+            "total": total,
+            "offset": offset,
+            "page_size": 15,
+            "keywords": keywords,
+            "state": state,
+            "start_date": start_date,
+            "end_date": end_date,
+            "us_states": edgar_client.US_STATES,
+            "searched": searched,
+            "error": error,
+        },
+    )
+
+
+@router.post("/edgar/add-prospect", response_class=HTMLResponse)
+def edgar_add_prospect(
+    request: Request,
+    db: Session = Depends(get_db),
+    full_name: str = Form(""),
+    title: str = Form(""),
+    company: str = Form(""),
+    state: str = Form(""),
+    biz_location: str = Form(""),
+):
+    name_parts = full_name.strip().rsplit(" ", 1)
+    first_name = name_parts[0] if len(name_parts) >= 1 else ""
+    last_name = name_parts[1] if len(name_parts) == 2 else ""
+
+    geography = biz_location or state or None
+
+    existing = db.query(Prospect).filter(
+        func.lower(Prospect.first_name) == first_name.lower(),
+        func.lower(Prospect.last_name) == last_name.lower(),
+        func.lower(Prospect.company) == company.lower(),
+    ).first() if first_name and last_name and company else None
+
+    if existing:
+        return RedirectResponse(
+            url=f"/dashboard/prospects/{existing.id}?from_edgar=1",
+            status_code=303,
+        )
+
+    prospect = Prospect(
+        id=str(uuid.uuid4()),
+        email=f"unknown_{uuid.uuid4().hex[:8]}@edgar.placeholder",
+        first_name=first_name or None,
+        last_name=last_name or None,
+        company=company or None,
+        title=title or None,
+        geography=geography,
+        source="manual",
+        email_validation_status="unknown",
+    )
+    db.add(prospect)
+    db.commit()
+    return RedirectResponse(
+        url=f"/dashboard/prospects/{prospect.id}/edit?from_edgar=1",
+        status_code=303,
     )
