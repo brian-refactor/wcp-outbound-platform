@@ -1422,30 +1422,43 @@ def leads_search(
 def leads_add_prospect(
     request: Request,
     db: Session = Depends(get_db),
+    apollo_id: str = Form(""),
     first_name: str = Form(""),
-    last_name: str = Form(""),
     title: str = Form(""),
     company: str = Form(""),
-    linkedin_url: str = Form(""),
-    city: str = Form(""),
-    state: str = Form(""),
-    email: str = Form(""),
-    phone: str = Form(""),
     return_url: str = Form("/dashboard/leads"),
 ):
+    # Enrich via Apollo people/match to get full name, email, phone, linkedin
+    enriched: dict = {}
+    email_source = None
+
+    if first_name and company:
+        apollo_result = apollo_client.enrich_person(first_name, "", company)
+        if apollo_result:
+            enriched = apollo_result
+            if enriched.get("email"):
+                email_source = "Apollo"
+
+    if not email_source and first_name and company:
+        hunter_result = hunter_client.find_email(first_name, "", company)
+        if hunter_result:
+            enriched["email"] = hunter_result["email"]
+            email_source = f"Hunter.io (confidence {hunter_result.get('confidence', '?')}%)"
+
+    resolved_first = enriched.get("first_name") or first_name
+    resolved_last = enriched.get("last_name") or ""
+
     # If already a prospect, go straight to their page
     existing = db.query(Prospect).filter(
-        func.lower(Prospect.first_name) == first_name.lower(),
-        func.lower(Prospect.last_name) == last_name.lower(),
+        func.lower(Prospect.first_name) == resolved_first.lower(),
+        func.lower(Prospect.last_name) == resolved_last.lower(),
         func.lower(Prospect.company) == company.lower(),
-    ).first() if first_name and last_name and company else None
+    ).first() if resolved_first and resolved_last and company else None
 
     if existing:
         return RedirectResponse(url=f"/dashboard/prospects/{existing.id}", status_code=303)
 
-    # Use only what the search result returned — no automatic enrichment
-    email_source = "Apollo" if email else None
-    geography = ", ".join(filter(None, [city, state])) or None
+    geography = ", ".join(filter(None, [enriched.get("city"), enriched.get("state")])) or None
 
     return templates.TemplateResponse(
         "dashboard/edgar_preview.html",
@@ -1453,13 +1466,13 @@ def leads_add_prospect(
             "request": request,
             "active_page": "leads",
             "confirm_url": "/dashboard/leads/confirm-prospect",
-            "first_name": first_name,
-            "last_name": last_name,
-            "email": email or "",
-            "title": title or "",
-            "company": company or "",
-            "phone": phone or "",
-            "linkedin_url": linkedin_url or "",
+            "first_name": resolved_first,
+            "last_name": resolved_last,
+            "email": enriched.get("email") or "",
+            "title": enriched.get("title") or title,
+            "company": enriched.get("company") or company,
+            "phone": enriched.get("phone") or "",
+            "linkedin_url": enriched.get("linkedin_url") or "",
             "geography": geography,
             "email_source": email_source,
             "return_url": return_url,

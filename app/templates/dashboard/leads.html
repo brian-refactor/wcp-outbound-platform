@@ -134,9 +134,9 @@
       <tr class="hover:bg-gray-50">
         <td class="px-5 py-3">
           <div class="font-medium text-gray-900">{{ row.name or (row.first_name + ' ' + row.last_name) }}</div>
-          {% if row.email %}
-          <div class="text-xs text-gray-400 mt-0.5">{{ row.email }}</div>
-          {% endif %}
+          <div class="text-xs mt-0.5 {% if row.has_email %}text-green-600{% else %}text-gray-400{% endif %}">
+            {% if row.has_email %}has email{% else %}no email on file{% endif %}
+          </div>
         </td>
         <td class="px-4 py-3 text-gray-600 text-sm">
           {{ row.title or '—' }}
@@ -145,10 +145,7 @@
           {{ row.company or '—' }}
         </td>
         <td class="px-4 py-3 text-gray-500 text-xs">
-          {% set loc = [] %}
-          {% if row.city %}{% set loc = loc + [row.city] %}{% endif %}
-          {% if row.state %}{% set loc = loc + [row.state] %}{% endif %}
-          {{ loc | join(', ') or '—' }}
+          —
         </td>
         <td class="px-4 py-3 text-right">
           <div class="flex items-center justify-end gap-1.5">
@@ -184,18 +181,13 @@
             </a>
             {# Add to prospects #}
             <form method="post" action="/dashboard/leads/add-prospect" class="inline">
-              <input type="hidden" name="first_name"   value="{{ row.first_name }}">
-              <input type="hidden" name="last_name"    value="{{ row.last_name }}">
-              <input type="hidden" name="title"        value="{{ row.title or '' }}">
-              <input type="hidden" name="company"      value="{{ row.company or '' }}">
-              <input type="hidden" name="linkedin_url" value="{{ row.linkedin_url or '' }}">
-              <input type="hidden" name="city"         value="{{ row.city or '' }}">
-              <input type="hidden" name="state"        value="{{ row.state or '' }}">
-              <input type="hidden" name="email"        value="{{ row.email or '' }}">
-              <input type="hidden" name="phone"        value="{{ row.phone or '' }}">
-              <input type="hidden" name="return_url"   value="/dashboard/leads?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&searched=1&page={{ page }}">
+              <input type="hidden" name="apollo_id"   value="{{ row.apollo_id }}">
+              <input type="hidden" name="first_name"  value="{{ row.first_name }}">
+              <input type="hidden" name="title"       value="{{ row.title or '' }}">
+              <input type="hidden" name="company"     value="{{ row.company or '' }}">
+              <input type="hidden" name="return_url"  value="/dashboard/leads?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&searched=1&page={{ page }}">
               <button type="submit"
-                      title="Add to prospects"
+                      title="Enrich and add to prospects"
                       class="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors whitespace-nowrap">
                 + Add
               </button>

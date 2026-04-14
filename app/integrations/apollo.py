@@ -48,7 +48,7 @@ def search_people(
     try:
         with httpx.Client(timeout=15.0) as client:
             resp = client.post(
-                f"{APOLLO_BASE_URL}/mixed_people/search",
+                f"{APOLLO_BASE_URL}/mixed_people/api_search",
                 json=payload,
                 headers={
                     "Content-Type": "application/json",
@@ -63,27 +63,26 @@ def search_people(
         return [], 0
 
     people = data.get("people") or []
-    total = (data.get("pagination") or {}).get("total_entries", len(people))
+    total = data.get("total_entries", len(people))
 
     results = []
     for p in people:
-        phone = None
-        phones = p.get("phone_numbers") or []
-        if phones:
-            phone = phones[0].get("sanitized_number") or phones[0].get("raw_number")
-
         org = p.get("organization") or {}
+        first_name = p.get("first_name") or ""
+        last_name_obfuscated = p.get("last_name_obfuscated") or ""
         results.append({
-            "first_name": p.get("first_name") or "",
-            "last_name": p.get("last_name") or "",
-            "name": p.get("name") or "",
+            "apollo_id": p.get("id") or "",
+            "first_name": first_name,
+            "last_name": last_name_obfuscated,
+            "name": f"{first_name} {last_name_obfuscated}".strip(),
             "title": p.get("title") or "",
-            "company": org.get("name") or p.get("employment_history", [{}])[0].get("organization_name", ""),
-            "city": p.get("city") or "",
-            "state": p.get("state") or "",
-            "linkedin_url": p.get("linkedin_url") or "",
-            "email": p.get("email") or None,
-            "phone": phone,
+            "company": org.get("name") or "",
+            "has_email": p.get("has_email") or False,
+            "city": "",
+            "state": "",
+            "linkedin_url": "",
+            "email": None,
+            "phone": None,
         })
 
     return results, total
