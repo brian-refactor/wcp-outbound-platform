@@ -175,7 +175,7 @@ app/
     high_intent.py         Celery task — scan and upgrade high-intent enrollments
     email_validation.py    Celery task — batch validate emails via ZeroBounce
   templates/
-    base.html              Sidebar layout, nav, ZeroBounce low-credit alert banner (HTMX)
+    base.html              Sidebar layout, nav (no ZeroBounce widget — moved to spend page)
     dashboard/
       overview.html        KPI cards, funnel chart, activity feed
       prospects.html       Prospect list, filters, bulk enrollment, batch intro generation
@@ -244,8 +244,8 @@ id, name, category (outreach/crm/enrichment/ai/validation/hosting/infrastructure
 - Batch validates up to 200 emails per API call.
 - Status mapping: `valid` → valid; `catch-all` → catch-all; `invalid/spamtrap/abuse/do_not_mail/disposable` → invalid; else → unknown.
 - Enrollment is **blocked** for all statuses except `valid` (including `null`).
-- Credits are displayed on the **Monthly Spend page** (`/dashboard/spend`), not the sidebar.
-- A site-wide red banner fires on every page when credits drop below 500 (HTMX fragment `/dashboard/fragments/zb-alert` — returns empty HTML when credits are fine).
+- Credits are displayed on the **Monthly Spend page** (`/dashboard/spend`) via HTMX fragment.
+- The sidebar ZeroBounce widget has been removed. The `zb_alert.html` fragment and `/dashboard/fragments/zb-alert` route exist but the banner has been removed from `base.html` — it was distracting.
 - Email is validated immediately when a new prospect is added (web request), and also in the background batch task every 30 min.
 
 ### Claude (Anthropic)
@@ -257,9 +257,19 @@ id, name, category (outreach/crm/enrichment/ai/validation/hosting/infrastructure
 - Batch generation available from prospects list.
 
 ### Apollo.io
-- **Enrichment** (`enrich_person`): `POST https://api.apollo.io/v1/people/match` — api_key in request body. Free tier. Used on EDGAR/Lead Finder add-prospect flow and prospect edit page.
-- **People Search** (`search_people`): `POST https://api.apollo.io/v1/mixed_people/search` — api_key passed as `X-Api-Key` header (required). **Paid plan required** — free tier returns `API_INACCESSIBLE`. Powers the Lead Finder page.
-- Search params: `q_keywords`, `person_titles` (array), `person_locations` (array), `page`, `per_page` (25).
+- **Both functions** use `X-Api-Key` header auth (not `api_key` in body) — required for new/master keys.
+- **Enrichment** (`enrich_person`): `POST https://api.apollo.io/v1/people/match`. Free tier. Used on Lead Finder "+ Add" flow and prospect edit page.
+- **People Search** (`search_people`): `POST https://api.apollo.io/v1/mixed_people/api_search`. **Paid plan required** — free tier returns `API_INACCESSIBLE`. Powers the Lead Finder page.
+- Search results return **obfuscated last names** (`last_name_obfuscated`) and a `has_email` boolean — no actual email/phone in search results. Full data is retrieved only when "+ Add" triggers `enrich_person`.
+- Search filter params supported:
+  - `q_keywords` — free text
+  - `person_titles` (array) — job title keywords
+  - `person_locations` (array) — city/state/country
+  - `organization_num_employees_ranges` (array) — e.g. `["1,10", "11,50"]`
+  - `organization_revenue_ranges` (array) — e.g. `["1000000,10000000"]`
+  - `q_organization_keyword_tags` (array) — industry tags e.g. `["financial services", "real estate"]`
+  - `contact_email_status` (array) — e.g. `["verified", "likely to engage"]` for has-email filter
+  - `person_seniority_levels` — **not supported** by `api_search`; use `person_titles` with EXECUTIVE_TITLES constant instead
 - If Apollo returns no email during enrichment, Hunter.io is tried next.
 
 ### Hunter.io
@@ -306,7 +316,7 @@ id, name, category (outreach/crm/enrichment/ai/validation/hosting/infrastructure
 | `/dashboard/sequences` | Campaign performance charts and table |
 | `/dashboard/mailboxes` | Email account warmup status |
 | `/dashboard/sync` | HubSpot sync health — pending count, recent synced events |
-| `/dashboard/leads` | Apollo people search — keyword/title/location filters + quick presets |
+| `/dashboard/leads` | Apollo people search — keyword, title, location, executives toggle, company size, revenue, industry, has-email filters + quick-filter presets (inside form) |
 | `/dashboard/leads/add-prospect` | POST — enrich via Apollo+Hunter, show preview (no save yet) |
 | `/dashboard/leads/confirm-prospect` | POST — save confirmed prospect |
 | `/dashboard/spend` | Monthly spend tracker — tool costs table + ZeroBounce credits card |
@@ -378,4 +388,6 @@ Open and click webhooks were not firing in earlier testing (sent to Smartlead su
 | Smartlead `unsubscribe_text` is email footer text, not reply keywords | Set it to "Unsubscribe"; reply keyword detection is a separate Smartlead setting |
 | EDGAR API `_id` field includes filename suffix | Use `adsh` for accession number; `ciks[]`/`display_names[]`/`biz_locations[]` are arrays |
 | Apollo `people/search` returns `API_INACCESSIBLE` | Search requires paid plan + `X-Api-Key` header; free tier only covers `people/match` |
+| Apollo returns 200 OK with JSON `{"error": "..."}` | `raise_for_status()` won't catch it — check `if "error" in data: raise RuntimeError(data["error"])` |
+| Apollo `api_search` ignores `person_seniority_levels` | Use `person_titles` with EXECUTIVE_TITLES constant instead |
 | Multiple Alembic heads block `alembic upgrade head` | Create a merge migration with `down_revision = (head1, head2)` and empty upgrade/downgrade |

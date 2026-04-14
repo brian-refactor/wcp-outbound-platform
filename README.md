@@ -27,7 +27,7 @@ An internal investor acquisition platform for Willow Creek Partners. Automates c
 
 ## What It Does
 
-1. **Find leads via Apollo.io** (`/dashboard/leads`). Search 275M+ contacts by keyword, job title, and location. Quick-filter presets for common investor profiles (Family Office, CIO, Managing Partner, Wealth Manager, etc.). Results are enriched via Apollo match + Hunter.io before being added to the prospect list via a preview/confirm flow.
+1. **Find leads via Apollo.io** (`/dashboard/leads`). Search 275M+ contacts by keyword, job title, location, company size, revenue range, industry, and seniority. An executives-only toggle limits results to C-suite and senior titles. A has-email filter surfaces only contacts Apollo has verified emails for. Quick-filter presets (Family Office, CIO, Managing Partner, Wealth Manager, etc.) are inside the search form. Results show obfuscated last names — full details (email, phone, LinkedIn) are retrieved via Apollo match when you click "+ Add", with Hunter.io fallback, before the preview/confirm flow.
 2. **Import prospects** via CSV upload or manual entry form.
 3. **Validate email addresses** automatically via ZeroBounce (runs every 30 min, and immediately on prospect add). Only `valid` emails can be enrolled in campaigns.
 4. **Generate personalized email openers** per prospect using Claude (Anthropic). A 1–2 sentence opener tailored to each investor's profile (type, geography, asset class, wealth tier) is passed to Smartlead as a custom field at enrollment time.
@@ -35,7 +35,7 @@ An internal investor acquisition platform for Willow Creek Partners. Automates c
 6. **Receive Smartlead webhooks** for every email event (sent, open, click, reply, bounce, unsubscribe, sequence complete). Events are stored in the `email_events` table.
 7. **High Intent scan** runs every 15 min — if a prospect has ≥ 1 link click older than 48 hours with no reply, they are moved to a "High Intent" Smartlead campaign automatically.
 8. **Sync to HubSpot** every 15 min — upserts contacts and creates a CRM note for each email event. On reply, a Deal is created in the **Outbound - Cold Leads** pipeline at **New Lead to Contact** stage.
-9. **Track monthly spend** (`/dashboard/spend`). All tool subscriptions in one place with monthly and annual run rate totals. ZeroBounce credit balance shown here; a site-wide red banner fires on all pages when credits drop below 500.
+9. **Track monthly spend** (`/dashboard/spend`). All tool subscriptions in one place with monthly and annual run rate totals. ZeroBounce credit balance shown here.
 
 ---
 
@@ -234,10 +234,13 @@ When matched, the prospect is enrolled in the configured High Intent campaign, a
 
 ### Apollo.io
 
-- **Enrichment** (`enrich_person`): `POST /v1/people/match` — api_key in request body. Free tier. Used in add-prospect flows and the prospect edit page.
-- **People Search** (`search_people`): `POST /v1/mixed_people/search` — api_key as `X-Api-Key` header. **Requires paid plan.** Powers the Lead Finder page (`/dashboard/leads`).
-- Enrichment only fills blank fields — existing data is never overwritten.
-- If Apollo returns no email, Hunter.io is tried as fallback.
+- **Both functions** authenticate via `X-Api-Key` header — required for new/master keys.
+- **Enrichment** (`enrich_person`): `POST /v1/people/match`. Free tier. Used on Lead Finder "+ Add" and the prospect edit page. Fills blank fields only — never overwrites existing data.
+- **People Search** (`search_people`): `POST /v1/mixed_people/api_search`. **Requires paid plan.** Free tier returns `API_INACCESSIBLE`. Powers the Lead Finder page.
+- Search results return **obfuscated last names** and a `has_email` boolean — no contact details until enrichment runs on add.
+- Supported search filters: keywords, job titles (`person_titles`), locations (`person_locations`), company size (`organization_num_employees_ranges`), revenue (`organization_revenue_ranges`), industry tags (`q_organization_keyword_tags`), has-email (`contact_email_status`).
+- Executives filter uses `EXECUTIVE_TITLES` constant — injects a curated list of C-suite/senior titles into `person_titles`.
+- If Apollo returns no email during enrichment, Hunter.io is tried as fallback.
 
 ### Hunter.io
 
@@ -272,7 +275,7 @@ All routes live under `/dashboard/` and require login (set via `DASHBOARD_PASSWO
 | `/dashboard/sequences` | Campaign performance charts |
 | `/dashboard/mailboxes` | Email account warmup status |
 | `/dashboard/sync` | HubSpot sync health |
-| `/dashboard/leads` | Apollo people search — keyword/title/location + quick-filter presets |
+| `/dashboard/leads` | Apollo people search — keyword, title, location, executives, company size, revenue, industry, has-email filters + quick-filter presets |
 | `/dashboard/leads/add-prospect` | POST — enrich via Apollo+Hunter, show preview |
 | `/dashboard/leads/confirm-prospect` | POST — save confirmed prospect |
 | `/dashboard/spend` | Monthly spend tracker — tool costs + ZeroBounce credits |
@@ -444,6 +447,8 @@ Two Railway services from the same GitHub repo. Push to `master` → both servic
 - **Smartlead webhook dedup**: `email_events` uses a composite unique on `(smartlead_message_id, event_type)`.
 - **Smartlead `unsubscribe_text`**: This is the footer link text, not a reply keyword filter. Set to `"Unsubscribe"`.
 - **Celery result backend**: Do not add one — it would exhaust the Upstash 500k/month free tier.
-- **Apollo people search**: Requires paid plan + `X-Api-Key` header. Free tier only covers `people/match` (enrichment).
+- **Apollo people search**: Requires paid plan + `X-Api-Key` header. Free tier only covers `people/match` (enrichment). Endpoint is `mixed_people/api_search` — the deprecated `mixed_people/search` no longer works.
+- **Apollo silent error responses**: Apollo may return `200 OK` with a JSON body containing an `"error"` key. `raise_for_status()` won't catch this — check the response body explicitly.
+- **Apollo seniority filter**: `person_seniority_levels` is not supported by `api_search`. Use `person_titles` with a curated EXECUTIVE_TITLES list instead.
 - **Multiple Alembic heads**: Create a merge migration with `down_revision = ('head1', 'head2')` and empty functions.
 - **Bulk enroll duplicates**: Skips prospects already `active` in the target campaign.
