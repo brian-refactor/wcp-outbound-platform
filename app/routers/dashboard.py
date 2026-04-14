@@ -1395,6 +1395,14 @@ COMPANY_SIZE_OPTIONS = [
     ("201,1000","Large (201–1,000)"),
 ]
 
+REVENUE_OPTIONS = [
+    ("1000000,10000000",     "$1M–$10M"),
+    ("10000000,50000000",    "$10M–$50M"),
+    ("50000000,100000000",   "$50M–$100M"),
+    ("100000000,500000000",  "$100M–$500M"),
+    ("500000000,",           "$500M+"),
+]
+
 INDUSTRY_OPTIONS = [
     "Financial Services",
     "Investment Management",
@@ -1415,6 +1423,7 @@ def leads_search(
     location: str = Query(""),
     executives: str = Query(""),
     size: list[str] = Query([]),
+    revenue: list[str] = Query([]),
     industry: list[str] = Query([]),
     has_email: str = Query(""),
     page: int = Query(1),
@@ -1441,6 +1450,7 @@ def leads_search(
                 titles=titles or None,
                 locations=locations or None,
                 employee_ranges=size or None,
+                revenue_ranges=revenue or None,
                 industries=industry or None,
                 has_email=is_has_email,
                 page=page,
@@ -1463,7 +1473,9 @@ def leads_search(
             "location": location,
             "executives": is_executives,
             "selected_sizes": size,
+            "selected_revenues": revenue,
             "selected_industries": industry,
+            "revenue_options": REVENUE_OPTIONS,
             "has_email": is_has_email,
             "company_size_options": COMPANY_SIZE_OPTIONS,
             "industry_options": INDUSTRY_OPTIONS,

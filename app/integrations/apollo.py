@@ -23,6 +23,7 @@ def search_people(
     titles: list[str] | None = None,
     locations: list[str] | None = None,
     employee_ranges: list[str] | None = None,
+    revenue_ranges: list[str] | None = None,
     industries: list[str] | None = None,
     has_email: bool = False,
     page: int = 1,
@@ -50,6 +51,8 @@ def search_people(
         payload["person_locations"] = locations
     if employee_ranges:
         payload["organization_num_employees_ranges"] = employee_ranges
+    if revenue_ranges:
+        payload["organization_revenue_ranges"] = revenue_ranges
     if industries:
         payload["q_organization_keyword_tags"] = industries
     if has_email:

@@ -68,6 +68,22 @@
     </div>
   </div>
 
+  {# ── Revenue size ── #}
+  <div class="mb-4">
+    <label class="block text-xs font-medium text-gray-500 mb-2">Company Revenue</label>
+    <div class="flex flex-wrap gap-2">
+      {% for value, label in revenue_options %}
+      <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-xs font-medium transition-colors
+                    {% if value in selected_revenues %}border-indigo-400 bg-indigo-50 text-indigo-700{% else %}border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600{% endif %}">
+        <input type="checkbox" name="revenue" value="{{ value }}"
+               {% if value in selected_revenues %}checked{% endif %}
+               class="hidden"/>
+        {{ label }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
   {# ── Industry ── #}
   <div class="mb-4">
     <label class="block text-xs font-medium text-gray-500 mb-2">Industry</label>
@@ -141,13 +157,13 @@
     {% if total > per_page %}
     <div class="flex items-center gap-2">
       {% if page > 1 %}
-      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&has_email={{ '1' if has_email else '' }}{% for s in selected_sizes %}&size={{ s | urlencode }}{% endfor %}{% for i in selected_industries %}&industry={{ i | urlencode }}{% endfor %}&searched=1&page={{ page - 1 }}"
+      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&has_email={{ '1' if has_email else '' }}{% for s in selected_sizes %}&size={{ s | urlencode }}{% endfor %}{% for r in selected_revenues %}&revenue={{ r | urlencode }}{% endfor %}{% for i in selected_industries %}&industry={{ i | urlencode }}{% endfor %}&searched=1&page={{ page - 1 }}"
          class="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
         &larr; Prev
       </a>
       {% endif %}
       {% if page * per_page < total %}
-      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&has_email={{ '1' if has_email else '' }}{% for s in selected_sizes %}&size={{ s | urlencode }}{% endfor %}{% for i in selected_industries %}&industry={{ i | urlencode }}{% endfor %}&searched=1&page={{ page + 1 }}"
+      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&has_email={{ '1' if has_email else '' }}{% for s in selected_sizes %}&size={{ s | urlencode }}{% endfor %}{% for r in selected_revenues %}&revenue={{ r | urlencode }}{% endfor %}{% for i in selected_industries %}&industry={{ i | urlencode }}{% endfor %}&searched=1&page={{ page + 1 }}"
          class="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
         Next &rarr;
       </a>
@@ -222,7 +238,7 @@
               <input type="hidden" name="first_name"  value="{{ row.first_name }}">
               <input type="hidden" name="title"       value="{{ row.title or '' }}">
               <input type="hidden" name="company"     value="{{ row.company or '' }}">
-              <input type="hidden" name="return_url"  value="/dashboard/leads?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&has_email={{ '1' if has_email else '' }}{% for s in selected_sizes %}&size={{ s | urlencode }}{% endfor %}{% for i in selected_industries %}&industry={{ i | urlencode }}{% endfor %}&searched=1&page={{ page }}">
+              <input type="hidden" name="return_url"  value="/dashboard/leads?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&has_email={{ '1' if has_email else '' }}{% for s in selected_sizes %}&size={{ s | urlencode }}{% endfor %}{% for r in selected_revenues %}&revenue={{ r | urlencode }}{% endfor %}{% for i in selected_industries %}&industry={{ i | urlencode }}{% endfor %}&searched=1&page={{ page }}">
               <button type="submit"
                       title="Enrich and add to prospects"
                       class="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors whitespace-nowrap">
@@ -241,13 +257,13 @@
     <span class="text-xs text-gray-400">Page {{ page }} of {{ ((total - 1) // per_page) + 1 }}</span>
     <div class="flex gap-2">
       {% if page > 1 %}
-      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&has_email={{ '1' if has_email else '' }}{% for s in selected_sizes %}&size={{ s | urlencode }}{% endfor %}{% for i in selected_industries %}&industry={{ i | urlencode }}{% endfor %}&searched=1&page={{ page - 1 }}"
+      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&has_email={{ '1' if has_email else '' }}{% for s in selected_sizes %}&size={{ s | urlencode }}{% endfor %}{% for r in selected_revenues %}&revenue={{ r | urlencode }}{% endfor %}{% for i in selected_industries %}&industry={{ i | urlencode }}{% endfor %}&searched=1&page={{ page - 1 }}"
          class="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
         &larr; Prev
       </a>
       {% endif %}
       {% if page * per_page < total %}
-      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&has_email={{ '1' if has_email else '' }}{% for s in selected_sizes %}&size={{ s | urlencode }}{% endfor %}{% for i in selected_industries %}&industry={{ i | urlencode }}{% endfor %}&searched=1&page={{ page + 1 }}"
+      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&has_email={{ '1' if has_email else '' }}{% for s in selected_sizes %}&size={{ s | urlencode }}{% endfor %}{% for r in selected_revenues %}&revenue={{ r | urlencode }}{% endfor %}{% for i in selected_industries %}&industry={{ i | urlencode }}{% endfor %}&searched=1&page={{ page + 1 }}"
          class="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
         Next &rarr;
       </a>
