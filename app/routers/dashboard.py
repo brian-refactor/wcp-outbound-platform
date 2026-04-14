@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.integrations import apollo as apollo_client
 from app.integrations import edgar as edgar_client
+from app.integrations import hunter as hunter_client
 from app.integrations import smartlead, zerobounce
 from app.models.email_event import EmailEvent
 from app.models.prospect import Prospect
@@ -1166,15 +1167,23 @@ def edgar_add_prospect(
             status_code=303,
         )
 
-    # Enrich via Apollo before creating the prospect
+    # Enrich via Apollo, then fall back to Hunter.io if no email found
     enriched = None
     if first_name and last_name and company:
         enriched = apollo_client.enrich_person(first_name, last_name, company)
 
+    if enriched and not enriched.get("email") and first_name and last_name and company:
+        hunter_result = hunter_client.find_email(first_name, last_name, company)
+        if hunter_result:
+            enriched["email"] = hunter_result["email"]
+            logger.info("Hunter.io found email for %s %s (confidence %s%%)", first_name, last_name, hunter_result.get("confidence"))
+    elif not enriched and first_name and last_name and company:
+        hunter_result = hunter_client.find_email(first_name, last_name, company)
+        if hunter_result:
+            enriched = {"email": hunter_result["email"]}
+
     email = (enriched or {}).get("email") or f"unknown_{uuid.uuid4().hex[:8]}@edgar.placeholder"
     email_status = "unknown"
-    if enriched and enriched.get("email"):
-        email_status = "unknown"  # will be validated by ZeroBounce on next batch run
 
     prospect = Prospect(
         id=str(uuid.uuid4()),

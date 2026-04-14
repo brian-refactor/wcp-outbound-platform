@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # Apollo.io (contact enrichment)
     apollo_api_key: str = ""
 
+    # Hunter.io (email finder — fallback when Apollo returns no email)
+    hunter_api_key: str = ""
+
     # API authentication
     api_key: str = ""  # X-API-Key header value; empty string disables auth in dev
 
