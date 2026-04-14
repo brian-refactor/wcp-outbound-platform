@@ -31,50 +31,80 @@
 {# ── Search form ── #}
 <form method="get" class="bg-white rounded-xl border border-gray-200 p-5 mb-5">
   <input type="hidden" name="searched" value="1">
-  <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+  <div class="grid grid-cols-2 gap-4 md:grid-cols-4 mb-4">
     <div class="col-span-2">
       <label class="block text-xs font-medium text-gray-500 mb-1">Keywords</label>
-      <input
-        type="text"
-        name="keywords"
-        value="{{ keywords }}"
-        placeholder="e.g. real estate, private equity, endowment…"
-        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-      />
+      <input type="text" name="keywords" value="{{ keywords }}"
+             placeholder="e.g. real estate, private equity, endowment…"
+             class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
     </div>
     <div>
       <label class="block text-xs font-medium text-gray-500 mb-1">Job Title</label>
-      <input
-        type="text"
-        name="title"
-        value="{{ title }}"
-        placeholder="e.g. family office, CIO…"
-        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-      />
+      <input type="text" name="title" value="{{ title }}"
+             placeholder="e.g. family office, CIO…"
+             class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
     </div>
     <div>
       <label class="block text-xs font-medium text-gray-500 mb-1">Location</label>
-      <input
-        type="text"
-        name="location"
-        value="{{ location }}"
-        placeholder="e.g. New York, California…"
-        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-      />
+      <input type="text" name="location" value="{{ location }}"
+             placeholder="e.g. New York, California…"
+             class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
     </div>
-    <div class="col-span-2 md:col-span-4 flex items-center justify-between">
+  </div>
+
+  {# ── Company size ── #}
+  <div class="mb-4">
+    <label class="block text-xs font-medium text-gray-500 mb-2">Company Size</label>
+    <div class="flex flex-wrap gap-2">
+      {% for value, label in company_size_options %}
+      <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-xs font-medium transition-colors
+                    {% if value in selected_sizes %}border-indigo-400 bg-indigo-50 text-indigo-700{% else %}border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600{% endif %}">
+        <input type="checkbox" name="size" value="{{ value }}"
+               {% if value in selected_sizes %}checked{% endif %}
+               class="hidden"/>
+        {{ label }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ── Industry ── #}
+  <div class="mb-4">
+    <label class="block text-xs font-medium text-gray-500 mb-2">Industry</label>
+    <div class="flex flex-wrap gap-2">
+      {% for ind in industry_options %}
+      <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-xs font-medium transition-colors
+                    {% if ind in selected_industries %}border-indigo-400 bg-indigo-50 text-indigo-700{% else %}border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600{% endif %}">
+        <input type="checkbox" name="industry" value="{{ ind }}"
+               {% if ind in selected_industries %}checked{% endif %}
+               class="hidden"/>
+        {{ ind }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ── Toggles + submit ── #}
+  <div class="flex items-center justify-between pt-3 border-t border-gray-100">
+    <div class="flex items-center gap-5">
       <label class="flex items-center gap-2 cursor-pointer select-none">
         <input type="checkbox" name="executives" value="1"
                {% if executives %}checked{% endif %}
                class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"/>
         <span class="text-sm text-gray-700 font-medium">Executives only</span>
-        <span class="text-xs text-gray-400">(CEO, President, Founder, Owner, Managing Partner, Chairman, CXO)</span>
+        <span class="text-xs text-gray-400">(CEO, Founder, President, Owner, MD, CXO…)</span>
       </label>
-      <button type="submit"
-              class="rounded-lg bg-indigo-600 text-white px-5 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
-        Search Apollo
-      </button>
+      <label class="flex items-center gap-2 cursor-pointer select-none">
+        <input type="checkbox" name="has_email" value="1"
+               {% if has_email %}checked{% endif %}
+               class="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"/>
+        <span class="text-sm text-gray-700 font-medium">Has email on file</span>
+      </label>
     </div>
+    <button type="submit"
+            class="rounded-lg bg-indigo-600 text-white px-5 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
+      Search Apollo
+    </button>
   </div>
 </form>
 
@@ -111,13 +141,13 @@
     {% if total > per_page %}
     <div class="flex items-center gap-2">
       {% if page > 1 %}
-      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&searched=1&page={{ page - 1 }}"
+      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&has_email={{ '1' if has_email else '' }}{% for s in selected_sizes %}&size={{ s | urlencode }}{% endfor %}{% for i in selected_industries %}&industry={{ i | urlencode }}{% endfor %}&searched=1&page={{ page - 1 }}"
          class="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
         &larr; Prev
       </a>
       {% endif %}
       {% if page * per_page < total %}
-      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&searched=1&page={{ page + 1 }}"
+      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&has_email={{ '1' if has_email else '' }}{% for s in selected_sizes %}&size={{ s | urlencode }}{% endfor %}{% for i in selected_industries %}&industry={{ i | urlencode }}{% endfor %}&searched=1&page={{ page + 1 }}"
          class="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
         Next &rarr;
       </a>
@@ -192,7 +222,7 @@
               <input type="hidden" name="first_name"  value="{{ row.first_name }}">
               <input type="hidden" name="title"       value="{{ row.title or '' }}">
               <input type="hidden" name="company"     value="{{ row.company or '' }}">
-              <input type="hidden" name="return_url"  value="/dashboard/leads?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&searched=1&page={{ page }}">
+              <input type="hidden" name="return_url"  value="/dashboard/leads?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&has_email={{ '1' if has_email else '' }}{% for s in selected_sizes %}&size={{ s | urlencode }}{% endfor %}{% for i in selected_industries %}&industry={{ i | urlencode }}{% endfor %}&searched=1&page={{ page }}">
               <button type="submit"
                       title="Enrich and add to prospects"
                       class="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors whitespace-nowrap">
@@ -211,13 +241,13 @@
     <span class="text-xs text-gray-400">Page {{ page }} of {{ ((total - 1) // per_page) + 1 }}</span>
     <div class="flex gap-2">
       {% if page > 1 %}
-      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&searched=1&page={{ page - 1 }}"
+      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&has_email={{ '1' if has_email else '' }}{% for s in selected_sizes %}&size={{ s | urlencode }}{% endfor %}{% for i in selected_industries %}&industry={{ i | urlencode }}{% endfor %}&searched=1&page={{ page - 1 }}"
          class="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
         &larr; Prev
       </a>
       {% endif %}
       {% if page * per_page < total %}
-      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&searched=1&page={{ page + 1 }}"
+      <a href="?keywords={{ keywords | urlencode }}&title={{ title | urlencode }}&location={{ location | urlencode }}&executives={{ '1' if executives else '' }}&has_email={{ '1' if has_email else '' }}{% for s in selected_sizes %}&size={{ s | urlencode }}{% endfor %}{% for i in selected_industries %}&industry={{ i | urlencode }}{% endfor %}&searched=1&page={{ page + 1 }}"
          class="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">
         Next &rarr;
       </a>

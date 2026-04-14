@@ -1388,6 +1388,25 @@ EXECUTIVE_TITLES = [
 ]
 
 
+COMPANY_SIZE_OPTIONS = [
+    ("1,10",    "Boutique (1–10)"),
+    ("11,50",   "Small (11–50)"),
+    ("51,200",  "Mid-size (51–200)"),
+    ("201,1000","Large (201–1,000)"),
+]
+
+INDUSTRY_OPTIONS = [
+    "Financial Services",
+    "Investment Management",
+    "Real Estate",
+    "Private Equity",
+    "Wealth Management",
+    "Family Office",
+    "Venture Capital",
+    "Banking",
+]
+
+
 @router.get("/leads", response_class=HTMLResponse)
 def leads_search(
     request: Request,
@@ -1395,6 +1414,9 @@ def leads_search(
     title: str = Query(""),
     location: str = Query(""),
     executives: str = Query(""),
+    size: list[str] = Query([]),
+    industry: list[str] = Query([]),
+    has_email: str = Query(""),
     page: int = Query(1),
     searched: str = Query(""),
 ):
@@ -1403,6 +1425,7 @@ def leads_search(
     error = None
     is_searched = bool(searched)
     is_executives = bool(executives)
+    is_has_email = bool(has_email)
 
     if is_searched:
         if is_executives:
@@ -1417,6 +1440,9 @@ def leads_search(
                 keywords=keywords.strip(),
                 titles=titles or None,
                 locations=locations or None,
+                employee_ranges=size or None,
+                industries=industry or None,
+                has_email=is_has_email,
                 page=page,
             )
         except Exception as e:
@@ -1436,6 +1462,11 @@ def leads_search(
             "title": title,
             "location": location,
             "executives": is_executives,
+            "selected_sizes": size,
+            "selected_industries": industry,
+            "has_email": is_has_email,
+            "company_size_options": COMPANY_SIZE_OPTIONS,
+            "industry_options": INDUSTRY_OPTIONS,
             "searched": is_searched,
             "error": error,
         },

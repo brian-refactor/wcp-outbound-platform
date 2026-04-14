@@ -22,14 +22,18 @@ def search_people(
     keywords: str = "",
     titles: list[str] | None = None,
     locations: list[str] | None = None,
+    employee_ranges: list[str] | None = None,
+    industries: list[str] | None = None,
+    has_email: bool = False,
     page: int = 1,
 ) -> tuple[list[dict], int]:
     """
-    Search Apollo's people database by keyword, title, and location.
+    Search Apollo's people database.
 
     Returns (results, total_entries).
-    Each result dict has: first_name, last_name, name, title, company,
-    city, state, linkedin_url, email (may be None).
+    employee_ranges: list of "min,max" strings e.g. ["1,10", "11,50"]
+    industries: list of keyword tags e.g. ["financial services", "real estate"]
+    has_email: if True, only return contacts Apollo has emails for
     """
     if not settings.apollo_api_key:
         return [], 0
@@ -44,6 +48,12 @@ def search_people(
         payload["person_titles"] = titles
     if locations:
         payload["person_locations"] = locations
+    if employee_ranges:
+        payload["organization_num_employees_ranges"] = employee_ranges
+    if industries:
+        payload["q_organization_keyword_tags"] = industries
+    if has_email:
+        payload["contact_email_status"] = ["verified", "likely to engage"]
 
     try:
         with httpx.Client(timeout=15.0) as client:
