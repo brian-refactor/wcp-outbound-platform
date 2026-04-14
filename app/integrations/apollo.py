@@ -104,7 +104,6 @@ def enrich_person(
         return None
 
     payload = {
-        "api_key": settings.apollo_api_key,
         "first_name": first_name,
         "last_name": last_name,
         "organization_name": organization_name,
@@ -116,7 +115,11 @@ def enrich_person(
             resp = client.post(
                 f"{APOLLO_BASE_URL}/people/match",
                 json=payload,
-                headers={"Content-Type": "application/json", "Cache-Control": "no-cache"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Cache-Control": "no-cache",
+                    "X-Api-Key": settings.apollo_api_key,
+                },
             )
             resp.raise_for_status()
             data = resp.json()
