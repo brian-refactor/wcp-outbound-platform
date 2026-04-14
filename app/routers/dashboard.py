@@ -384,6 +384,18 @@ def prospect_bulk_enroll(
             )
             failed.append(f"{prospect.email} (email {prospect.email_validation_status or 'not validated'})")
             continue
+        already_enrolled = (
+            db.query(SequenceEnrollment)
+            .filter(
+                SequenceEnrollment.prospect_id == prospect.id,
+                SequenceEnrollment.smartlead_campaign_id == str(campaign_id),
+                SequenceEnrollment.status == "active",
+            )
+            .first()
+        )
+        if already_enrolled:
+            logger.info("Bulk enroll skipped %s — already active in campaign %s", prospect.email, campaign_id)
+            continue
         try:
             _ensure_personalized_intro(prospect, db)
             smartlead.enroll_prospect(
