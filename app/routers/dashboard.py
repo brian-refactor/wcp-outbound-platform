@@ -29,6 +29,7 @@ from app.integrations import smartlead, zerobounce
 from app.models.email_event import EmailEvent
 from app.models.prospect import Prospect
 from app.models.sequence_enrollment import SequenceEnrollment
+from app.models.tool_cost import ToolCost
 from app.routers.stats import (
     campaigns_funnel,
     overview_stats,
@@ -1514,3 +1515,87 @@ def leads_confirm_prospect(
     db.add(prospect)
     db.commit()
     return RedirectResponse(url=f"/dashboard/prospects/{prospect.id}", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Spend Tracker
+# ---------------------------------------------------------------------------
+
+SPEND_CATEGORIES = ["outreach", "crm", "enrichment", "ai", "validation", "hosting", "infrastructure", "other"]
+
+
+@router.get("/spend", response_class=HTMLResponse)
+def spend_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    editing: str = Query(""),
+):
+    tools = db.query(ToolCost).order_by(ToolCost.category, ToolCost.name).all()
+    active = [t for t in tools if t.status == "active"]
+    inactive = [t for t in tools if t.status != "active"]
+    return templates.TemplateResponse(
+        "dashboard/spend.html",
+        {
+            "request": request,
+            "active_page": "spend",
+            "tools": tools,
+            "total_active": float(sum(t.monthly_cost for t in active)),
+            "total_inactive": float(sum(t.monthly_cost for t in inactive)),
+            "active_count": len(active),
+            "inactive_count": len(inactive),
+            "editing": editing,
+            "categories": SPEND_CATEGORIES,
+        },
+    )
+
+
+@router.post("/spend/add", response_class=HTMLResponse)
+def spend_add(
+    db: Session = Depends(get_db),
+    name: str = Form(...),
+    category: str = Form("other"),
+    monthly_cost: float = Form(0.0),
+    notes: str = Form(""),
+):
+    tool = ToolCost(
+        id=str(uuid.uuid4()),
+        name=name.strip(),
+        category=category,
+        monthly_cost=monthly_cost,
+        status="active",
+        notes=notes.strip() or None,
+    )
+    db.add(tool)
+    db.commit()
+    return RedirectResponse(url="/dashboard/spend", status_code=303)
+
+
+@router.post("/spend/{tool_id}/update", response_class=HTMLResponse)
+def spend_update(
+    tool_id: str,
+    db: Session = Depends(get_db),
+    name: str = Form(...),
+    category: str = Form("other"),
+    monthly_cost: float = Form(0.0),
+    status: str = Form("active"),
+    notes: str = Form(""),
+):
+    tool = db.query(ToolCost).filter(ToolCost.id == tool_id).first()
+    if tool:
+        tool.name = name.strip()
+        tool.category = category
+        tool.monthly_cost = monthly_cost
+        tool.status = status
+        tool.notes = notes.strip() or None
+        db.commit()
+    return RedirectResponse(url="/dashboard/spend", status_code=303)
+
+
+@router.post("/spend/{tool_id}/delete", response_class=HTMLResponse)
+def spend_delete(
+    tool_id: str,
+    db: Session = Depends(get_db),
+):
+    db.query(ToolCost).filter(ToolCost.id == tool_id).delete()
+    db.commit()
+    return RedirectResponse(url="/dashboard/spend", status_code=303)

@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Monthly Spend{% endblock %}
+{% block heading %}Monthly Spend{% endblock %}
+
+{% block content %}
+
+{# ── Run rate card ── #}
+<div class="grid grid-cols-3 gap-4 mb-6">
+  <div class="bg-white rounded-xl border border-gray-200 px-6 py-5">
+    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Monthly Run Rate</div>
+    <div class="text-3xl font-bold text-gray-900">${{ '%.2f' | format(total_active) }}</div>
+    <div class="text-xs text-gray-400 mt-1">{{ active_count }} active tool{{ 's' if active_count != 1 else '' }}</div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-200 px-6 py-5">
+    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Annual Run Rate</div>
+    <div class="text-3xl font-bold text-gray-900">${{ '%.2f' | format(total_active * 12) }}</div>
+    <div class="text-xs text-gray-400 mt-1">at current monthly spend</div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-200 px-6 py-5">
+    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Inactive / Paused</div>
+    <div class="text-3xl font-bold text-gray-400">${{ '%.2f' | format(total_inactive) }}</div>
+    <div class="text-xs text-gray-400 mt-1">{{ inactive_count }} inactive tool{{ 's' if inactive_count != 1 else '' }}</div>
+  </div>
+</div>
+
+{# ── Tools table ── #}
+<div class="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
+  <div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+    <span class="text-sm font-medium text-gray-700">Tools &amp; Subscriptions</span>
+  </div>
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-gray-50 border-b border-gray-100">
+        <th class="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tool</th>
+        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Category</th>
+        <th class="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Monthly Cost</th>
+        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+        <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for tool in tools %}
+
+      {% if editing == tool.id %}
+      {# ── Inline edit row ── #}
+      <tr class="bg-indigo-50">
+        <form method="post" action="/dashboard/spend/{{ tool.id }}/update">
+        <td class="px-5 py-3">
+          <input type="text" name="name" value="{{ tool.name }}"
+                 class="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+        </td>
+        <td class="px-4 py-3">
+          <select name="category"
+                  class="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            {% for cat in categories %}
+            <option value="{{ cat }}" {% if tool.category == cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td class="px-4 py-3">
+          <input type="number" name="monthly_cost" value="{{ tool.monthly_cost }}" step="0.01" min="0"
+                 class="w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-right focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+        </td>
+        <td class="px-4 py-3">
+          <select name="status"
+                  class="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="active"   {% if tool.status == 'active'   %}selected{% endif %}>Active</option>
+            <option value="inactive" {% if tool.status == 'inactive' %}selected{% endif %}>Inactive</option>
+          </select>
+        </td>
+        <td class="px-4 py-3">
+          <input type="text" name="notes" value="{{ tool.notes or '' }}"
+                 class="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+        </td>
+        <td class="px-4 py-3 text-right whitespace-nowrap">
+          <button type="submit"
+                  class="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors mr-1">
+            Save
+          </button>
+          <a href="/dashboard/spend"
+             class="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors">
+            Cancel
+          </a>
+        </td>
+        </form>
+      </tr>
+
+      {% else %}
+      {# ── Read row ── #}
+      <tr class="hover:bg-gray-50 {% if tool.status == 'inactive' %}opacity-50{% endif %}">
+        <td class="px-5 py-3 font-medium text-gray-900">{{ tool.name }}</td>
+        <td class="px-4 py-3">
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+            {% if tool.category == 'outreach' %}bg-blue-50 text-blue-700
+            {% elif tool.category == 'crm' %}bg-purple-50 text-purple-700
+            {% elif tool.category == 'enrichment' %}bg-green-50 text-green-700
+            {% elif tool.category == 'ai' %}bg-orange-50 text-orange-700
+            {% elif tool.category == 'validation' %}bg-yellow-50 text-yellow-700
+            {% elif tool.category == 'hosting' %}bg-gray-100 text-gray-700
+            {% elif tool.category == 'infrastructure' %}bg-gray-100 text-gray-600
+            {% else %}bg-gray-100 text-gray-600{% endif %}">
+            {{ tool.category }}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-right font-medium text-gray-900">
+          {% if tool.monthly_cost > 0 %}
+            ${{ '%.2f' | format(tool.monthly_cost) }}
+          {% else %}
+            <span class="text-gray-400">—</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          {% if tool.status == 'active' %}
+          <span class="inline-flex items-center gap-1 text-xs text-green-700">
+            <span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span> Active
+          </span>
+          {% else %}
+          <span class="inline-flex items-center gap-1 text-xs text-gray-400">
+            <span class="w-1.5 h-1.5 rounded-full bg-gray-300 inline-block"></span> Inactive
+          </span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-gray-500 text-xs">{{ tool.notes or '' }}</td>
+        <td class="px-4 py-3 text-right whitespace-nowrap">
+          <a href="/dashboard/spend?editing={{ tool.id }}"
+             class="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors mr-1">
+            Edit
+          </a>
+          <form method="post" action="/dashboard/spend/{{ tool.id }}/delete" class="inline"
+                onsubmit="return confirm('Remove {{ tool.name }}?')">
+            <button type="submit"
+                    class="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-colors">
+              Delete
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endif %}
+
+      {% endfor %}
+    </tbody>
+    {% if tools %}
+    <tfoot>
+      <tr class="border-t-2 border-gray-200 bg-gray-50">
+        <td colspan="2" class="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Total (active)</td>
+        <td class="px-4 py-3 text-right font-bold text-gray-900">${{ '%.2f' | format(total_active) }}</td>
+        <td colspan="3"></td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</div>
+
+{# ── Add new tool ── #}
+<div class="bg-white rounded-xl border border-gray-200 p-5">
+  <h3 class="text-sm font-semibold text-gray-700 mb-4">Add Tool</h3>
+  <form method="post" action="/dashboard/spend/add">
+    <div class="grid grid-cols-2 gap-4 md:grid-cols-5">
+      <div class="col-span-2 md:col-span-1">
+        <label class="block text-xs font-medium text-gray-500 mb-1">Tool Name</label>
+        <input type="text" name="name" required placeholder="e.g. Zapier"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Category</label>
+        <select name="category"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          {% for cat in categories %}
+          <option value="{{ cat }}">{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Monthly Cost ($)</label>
+        <input type="number" name="monthly_cost" value="0" step="0.01" min="0"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div class="col-span-2 md:col-span-1">
+        <label class="block text-xs font-medium text-gray-500 mb-1">Notes</label>
+        <input type="text" name="notes" placeholder="Optional"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+      </div>
+      <div class="flex items-end">
+        <button type="submit"
+                class="w-full rounded-lg bg-indigo-600 text-white px-4 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
+          Add Tool
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
