@@ -6,7 +6,7 @@ This file is read by Claude Code at the start of every session. It contains stan
 
 ## Project Overview
 
-Internal investor acquisition platform for Willow Creek Partners. Automates outbound cold email outreach via Smartlead, tracks engagement events, syncs to HubSpot CRM, validates emails via ZeroBounce, and generates AI-powered personalized email openers via Claude (Anthropic). Managed through a private password-protected web dashboard.
+Internal investor acquisition platform for Willow Creek Partners. Automates outbound cold email outreach via Smartlead, tracks engagement events, syncs to HubSpot CRM, validates emails via ZeroBounce, generates AI-powered personalized email openers via Claude (Anthropic), sources new leads from SEC EDGAR Form D filings, and enriches contacts via Apollo.io and Hunter.io. Managed through a private password-protected web dashboard.
 
 **Live URL:** https://web-production-eeb6.up.railway.app
 
@@ -30,6 +30,10 @@ Internal investor acquisition platform for Willow Creek Partners. Automates outb
 - Do NOT use `-B` / `--beat` combined with the worker on Windows — run beat as a separate process.
 - On Railway (Linux), combined worker+beat works fine: `celery -A app.worker worker --beat -l info --pool=solo`
 
+### Celery Redis Usage
+- Do NOT add a result backend (`backend=`) to the Celery app — tasks are fire-and-forget and results are never read. Adding a backend would hammer Upstash and exceed the free tier limit.
+- `task_ignore_result=True`, `worker_send_task_events=False`, `task_send_sent_event=False` must remain set.
+
 ### Middleware Order (Starlette/FastAPI)
 - `add_middleware` stacks in **reverse**: the last call added is the outermost and runs first.
 - `SessionMiddleware` must be added **last** (outermost) so the session is populated before `DashboardAuthMiddleware` runs.
@@ -44,6 +48,9 @@ Internal investor acquisition platform for Willow Creek Partners. Automates outb
 - **Never use the Railway Raw Editor** to set env vars — it prepends the `=` sign to values, breaking auth and config.
 - Always use the **+ New Variable** button in the Railway Variables tab.
 - Both `web` and `worker` services need their own copies of shared variables (DATABASE_URL, REDIS_URL, etc.).
+
+### UX Pattern — Preview Before Save
+- Any flow that calls an external API and then creates a DB record must show a preview/confirm page first. The user must be able to cancel without anything being saved. (This pattern is used in the EDGAR add-prospect flow.)
 
 ---
 
@@ -103,6 +110,8 @@ The `worker` service Config File Path must be set to `railway.worker.toml` in th
 | `HUBSPOT_DEAL_STAGE_ID` | Deal stage ID where new reply deals land |
 | `ZEROBOUNCE_API_KEY` | ZeroBounce API key — needed on **both** web and worker services |
 | `ANTHROPIC_API_KEY` | Claude API key — web service only; used for personalized intro generation |
+| `APOLLO_API_KEY` | Apollo.io People Match API key — web service only; contact enrichment |
+| `HUNTER_API_KEY` | Hunter.io email finder API key — web service only; email fallback after Apollo |
 | `API_KEY` | X-API-Key for REST API auth (web only; empty = disabled) |
 | `DASHBOARD_USERNAME` | Dashboard login username (web only) |
 | `DASHBOARD_PASSWORD` | Dashboard login password (web only; empty = auth disabled) |
@@ -117,16 +126,18 @@ The `worker` service Config File Path must be set to `railway.worker.toml` in th
                           - Dashboard UI (Jinja2 + HTMX)
                           - REST API /prospects
                           - Webhook receiver /webhooks/smartlead
+                          - EDGAR lead finder /dashboard/edgar
 
   Smartlead ───webhook──▶ /webhooks/smartlead
 
                           worker service (Celery + Beat)
-                          - sync_to_hubspot     every 5 min
+                          - sync_to_hubspot     every 15 min
                           - scan_high_intent    every 15 min
                           - validate_emails     every 30 min
 
   All services share: PostgreSQL (Railway) + Redis (Upstash)
-  External APIs: Smartlead, HubSpot, ZeroBounce, Anthropic (Claude)
+  External APIs: Smartlead, HubSpot, ZeroBounce, Anthropic (Claude),
+                 Apollo.io, Hunter.io, SEC EDGAR (public)
 ```
 
 ---
@@ -143,6 +154,7 @@ app/
     prospect.py            Prospect model
     sequence_enrollment.py SequenceEnrollment model
     email_event.py         EmailEvent model
+    saved_search.py        SavedSearch model (EDGAR saved searches)
   routers/
     dashboard.py           All dashboard routes + Jinja2 templates
     webhooks.py            POST /webhooks/smartlead
@@ -153,6 +165,9 @@ app/
     hubspot.py             HubSpot API client (upsert contacts, notes, deals)
     zerobounce.py          ZeroBounce client (validate_batch, get_credits)
     claude_ai.py           Claude API client (generate_personalized_intro)
+    apollo.py              Apollo.io People Match (contact enrichment)
+    hunter.py              Hunter.io email finder (email fallback)
+    edgar.py               SEC EDGAR Form D search + XML parser
   tasks/
     hubspot_sync.py        Celery task — batch sync email events → HubSpot
     high_intent.py         Celery task — scan and upgrade high-intent enrollments
@@ -168,6 +183,8 @@ app/
       import.html          CSV upload
       sequences.html       Sequence/campaign performance charts and tables
       sync.html            HubSpot sync health page
+      edgar.html           EDGAR Form D lead finder (search, saved searches, results)
+      edgar_preview.html   Preview/confirm page before saving EDGAR contact as prospect
       fragments/
         activity_feed.html HTMX auto-refresh fragment
         zb_credits.html    HTMX fragment for ZeroBounce credit widget in sidebar
@@ -190,6 +207,9 @@ prospect_id, smartlead_campaign_id, campaign_name, track (standard/high_intent),
 ### `email_events`
 prospect_id (nullable), enrollment_id (nullable), event_type (sent/open/click/reply/bounce/unsubscribe/complete), email_subject, domain_used, clicked_url, smartlead_message_id, event_type composite unique `(smartlead_message_id, event_type)` — prevents duplicate events of different types with the same message ID, hubspot_synced_at (NULL until synced), raw_payload, occurred_at.
 
+### `saved_searches`
+id, name, params (JSON string of EDGAR search params: keywords/state/start_date/end_date), created_at. Used by the EDGAR lead finder to store named searches.
+
 ---
 
 ## Integration Notes
@@ -200,7 +220,9 @@ prospect_id (nullable), enrollment_id (nullable), event_type (sent/open/click/re
 - Custom fields at enrollment must be nested under `"custom_fields"` key — NOT flat on the lead object.
 - All event type variants are mapped (e.g. `EMAIL_REPLY` and `EMAIL_REPLIED` both resolve to `"reply"`).
 - Campaigns must be created manually in Smartlead UI. Campaign IDs are integers.
-- `personalized_intro` is passed as a custom field at enrollment. Use `{{custom_fields.personalized_intro}}` in Smartlead email templates (not `{{personalized_intro}}` — that syntax is for standard lead fields only). Smartlead auto-creates the custom field definition on first enrollment that includes it.
+- `personalized_intro` is passed as a custom field at enrollment. Use `{{custom_fields.personalized_intro}}` in Smartlead email templates.
+- `unsubscribe_text` field in Smartlead = the footer text shown at the bottom of emails (e.g. "Unsubscribe"). It is NOT a reply keyword detector. Do not put keywords in this field.
+- Update campaign settings via `POST /api/v1/campaigns/{id}/settings` (not PUT or PATCH).
 
 ### HubSpot
 - Auth: Private App token (Bearer). Create under Settings → Integrations → Private Apps.
@@ -218,11 +240,33 @@ prospect_id (nullable), enrollment_id (nullable), event_type (sent/open/click/re
 
 ### Claude (Anthropic)
 - Model: `claude-haiku-4-5-20251001` (fast and cheap for short generations).
-- `generate_personalized_intro(prospect)` in `app/integrations/claude_ai.py` generates a 1–2 sentence personalized email opener using investor_type, geography, wealth_tier, asset_class_preference, title, company.
+- `generate_personalized_intro(prospect)` in `app/integrations/claude_ai.py` generates a 1–2 sentence personalized email opener.
 - Called automatically at enrollment time via `_ensure_personalized_intro()` — generates once, reuses after.
-- If API key is missing or generation fails, falls back to a rule-based opener based on investor_type/asset_class/geography so the Smartlead `{{custom_fields.personalized_intro}}` variable is never blank.
+- Falls back to rule-based opener if API key missing or generation fails.
 - Can be generated/regenerated on demand from the prospect detail page (HTMX button).
-- Batch generation available from prospects list: "Generate N Missing Intros" button (processes up to 100 at a time).
+- Batch generation available from prospects list.
+
+### Apollo.io
+- Endpoint: `POST https://api.apollo.io/v1/people/match`
+- Called when a user clicks "+ Add" on an EDGAR result — enriches before showing the preview page.
+- Returns: email, linkedin_url, title, phone, city, state, company.
+- If Apollo returns no email, Hunter.io is tried next.
+
+### Hunter.io
+- Endpoint: `GET https://api.hunter.io/v2/email-finder`
+- Called as fallback after Apollo if no email found.
+- Params: first_name, last_name, company, api_key.
+- Returns: email, confidence score, number of sources.
+
+### SEC EDGAR (Form D)
+- Search endpoint: `GET https://efts.sec.gov/LATEST/search-index`
+- Params: `forms=D`, `q`, `locationCode` (2-letter state), `dateRange=custom`, `startdt`, `enddt`, `from`, `size`
+- Response field names: `adsh` (accession number), `ciks[]`, `display_names[]`, `biz_locations[]`, `file_date`
+- Form D XML URL: `https://www.sec.gov/Archives/edgar/data/{cik}/{accession_nodash}/primary_doc.xml`
+- Requires `User-Agent` header per EDGAR access policy.
+- XMLs fetched in parallel via `ThreadPoolExecutor(max_workers=10)`.
+- Related persons filtered for individuals only (entities with LLC/LP/Fund/etc. suffixes are excluded).
+- Deduplicated by (name, entity_name) across filings.
 
 ---
 
@@ -230,10 +274,11 @@ prospect_id (nullable), enrollment_id (nullable), event_type (sent/open/click/re
 
 1. `email_validation_status` must equal `"valid"` — null, unknown, catch-all, and invalid are all blocked.
 2. `personalized_intro` is generated (Claude or fallback) at enrollment time if not already set.
-3. On **reply** or **sequence complete** event → enrollment `status = "completed"`.
-4. On **bounce** → enrollment `status = "bounced"`.
-5. On **unsubscribe** → enrollment `status = "opted_out"`.
-6. High Intent upgrade: ≥ 1 click older than 48 hours AND no reply → enrolled in High Intent campaign, track set to `"high_intent"`.
+3. Bulk enroll skips prospects already `active` in the target campaign (duplicate prevention).
+4. On **reply** or **sequence complete** event → enrollment `status = "completed"`.
+5. On **bounce** → enrollment `status = "bounced"`.
+6. On **unsubscribe** → enrollment `status = "opted_out"`.
+7. High Intent upgrade: ≥ 1 click older than 48 hours AND no reply → enrolled in High Intent campaign, track set to `"high_intent"`.
 
 ---
 
@@ -241,24 +286,30 @@ prospect_id (nullable), enrollment_id (nullable), event_type (sent/open/click/re
 
 | Route | Description |
 |-------|-------------|
-| `/login` | Password login — protected by `DASHBOARD_USERNAME` / `DASHBOARD_PASSWORD` |
-| `/dashboard/` | Overview: KPIs, engagement rates, funnel chart by campaign, activity feed. Campaign filter dropdown. |
-| `/dashboard/prospects` | List with search, filters (enrolled, campaign, validation status, investor type, wealth tier, intro status), bulk enrollment, batch intro generation |
+| `/login` | Password login |
+| `/dashboard/` | Overview: KPIs, engagement rates, funnel chart by campaign, activity feed |
+| `/dashboard/prospects` | List with search, filters, bulk enrollment, batch intro generation |
 | `/dashboard/prospects/new` | Add single prospect (validates email via ZeroBounce immediately) |
 | `/dashboard/prospects/import` | CSV upload |
-| `/dashboard/prospects/bulk-enroll` | POST — bulk enroll selected prospects into a campaign |
+| `/dashboard/prospects/bulk-enroll` | POST — bulk enroll selected prospects (skips already-active duplicates) |
 | `/dashboard/prospects/batch-generate-intro` | POST — generate Claude intros for selected or all missing (up to 100) |
-| `/dashboard/prospects/{id}` | Detail page — contact card, investor profile, personalized intro card, enrollment history |
+| `/dashboard/prospects/{id}` | Detail page — contact card, investor profile, personalized intro, enrollment history |
 | `/dashboard/prospects/{id}/edit` | Edit all fields + enroll in sequence |
 | `/dashboard/prospects/{id}/delete` | Delete prospect (cascades enrollments + events) |
-| `/dashboard/prospects/{id}/generate-intro` | POST — generate/regenerate Claude intro for one prospect (HTMX) |
+| `/dashboard/prospects/{id}/generate-intro` | POST — generate/regenerate Claude intro (HTMX) |
 | `/dashboard/sequences` | Campaign performance charts and table |
 | `/dashboard/mailboxes` | Email account warmup status |
 | `/dashboard/sync` | HubSpot sync health — pending count, recent synced events |
+| `/dashboard/edgar` | EDGAR Form D lead finder — search, saved searches, Google/LinkedIn shortcuts |
+| `/dashboard/edgar/add-prospect` | POST — run Apollo+Hunter enrichment, show preview (no save yet) |
+| `/dashboard/edgar/confirm-prospect` | POST — save enriched prospect after user confirms preview |
+| `/dashboard/edgar/save-search` | POST — save named search to DB |
+| `/dashboard/edgar/saved-searches/{id}/delete` | POST — delete saved search |
 | `/dashboard/fragments/activity` | HTMX auto-refresh fragment (every 30s) |
-| `/dashboard/fragments/zb-credits` | HTMX fragment — ZeroBounce credit widget loaded in sidebar |
+| `/dashboard/fragments/zb-credits` | HTMX fragment — ZeroBounce credit widget in sidebar |
 
 All times displayed in US/Eastern timezone via Jinja2 `to_et` filter.
+A `fromjson` filter is also registered for parsing saved search params in templates.
 
 ---
 
@@ -271,14 +322,17 @@ Open and click webhooks were not firing in earlier testing (sent to Smartlead su
 - [ ] High Intent upgrade: ≥ 1 click older than 48h AND no reply → scan upgrades track
 
 ### Pending Configuration (Manual)
-- [x] **Negative reply keywords in Smartlead** — set via MCP on both campaigns: `"not interested,unsubscribe,stop,remove me"` in `unsubscribe_text`. Verify in Smartlead UI.
+- [x] **Negative reply keywords in Smartlead** — set via MCP on both campaigns. Verify in Smartlead UI.
 - [x] **Set `ANTHROPIC_API_KEY`** on Railway web service — done and confirmed working.
-- [ ] **Add `{{custom_fields.personalized_intro}}` to Smartlead email templates** — place it as the opening line of email body.
+- [x] **Set `APOLLO_API_KEY`** on Railway web service — done.
+- [ ] **Set `HUNTER_API_KEY`** on Railway web service — key provided, needs to be added via + New Variable.
+- [ ] **Add `{{custom_fields.personalized_intro}}` to Smartlead email templates** — place as opening line of email body.
 
 ### Future Features
 - [ ] Spam event type mapping — waiting on Smartlead to confirm event name for spam reports
 - [ ] REST API documentation — `/prospects` endpoints protected by `X-API-Key` header
 - [ ] Prospect activity endpoint `GET /prospects/{id}/activity` — full enrollment + event history as JSON
+- [ ] Upstash Redis upgrade — if request volume grows, upgrade from free tier ($10/month for 100M requests)
 
 ---
 
@@ -295,5 +349,10 @@ Open and click webhooks were not firing in earlier testing (sent to Smartlead su
 | Smartlead rejects custom fields flat on lead object | Nest under `"custom_fields"` key |
 | Smartlead sends `EMAIL_REPLY` not `EMAIL_REPLIED` | All event type variants are aliased in `SMARTLEAD_EVENT_MAP` |
 | HubSpot `hs_timestamp` format | Must be `"%Y-%m-%dT%H:%M:%S.000Z"` (milliseconds required) |
-| `smartlead_message_id` unique constraint dropped open/click events | Fixed: composite `(smartlead_message_id, event_type)` constraint instead of single-column |
+| `smartlead_message_id` unique constraint dropped open/click events | Fixed: composite `(smartlead_message_id, event_type)` constraint |
 | Jinja2 `{{ \'s\' }}` causes TemplateSyntaxError | Use `{{ 's' }}` — no backslash escaping inside `{{ }}` blocks |
+| Celery worker crashing with Upstash 500k limit | Removed result backend; disabled events; slowed HubSpot sync to 15 min |
+| Bulk enroll allowed duplicate active enrollments | Added check: skip if already `active` in target campaign |
+| Smartlead `unsubscribe_text` is email footer text, not reply keywords | Set it to "Unsubscribe"; reply keyword detection is a separate Smartlead setting |
+| EDGAR API `_id` field includes filename suffix | Use `adsh` for accession number; `ciks[]`/`display_names[]`/`biz_locations[]` are arrays |
+| EDGAR campaign update API | Use `POST /api/v1/campaigns/{id}/settings` — not PUT or PATCH |
