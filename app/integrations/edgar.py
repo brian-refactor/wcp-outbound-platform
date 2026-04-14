@@ -92,13 +92,18 @@ def search_form_d(
     results = []
     for hit in hits.get("hits", []):
         src = hit.get("_source", {})
-        filing_id = hit.get("_id", "")
-        cik = _cik_from_accession(filing_id)
+        accession_no = src.get("adsh", "")
+        raw_cik = (src.get("ciks") or [""])[0]
+        cik = str(int(raw_cik)) if raw_cik else ""
+        # display_names format: "ENTITY NAME  (TICKER)  (CIK 0001234567)"
+        display_name = (src.get("display_names") or [""])[0]
+        entity_name = display_name.split("  (")[0].strip() if display_name else ""
+        biz_location = (src.get("biz_locations") or [""])[0]
         results.append({
-            "entity_name": src.get("entity_name", ""),
+            "entity_name": entity_name,
             "file_date": src.get("file_date", ""),
-            "biz_location": src.get("biz_location", ""),
-            "accession_no": filing_id,
+            "biz_location": biz_location,
+            "accession_no": accession_no,
             "cik": cik,
         })
     return results, total
