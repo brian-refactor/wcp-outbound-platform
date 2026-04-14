@@ -25,7 +25,7 @@ An internal investor acquisition platform for Willow Creek Partners. Automates c
 
 ## What It Does
 
-1. **Source leads from SEC EDGAR** via the EDGAR Lead Finder (`/dashboard/edgar`). Search public Form D filings (private placements) by keyword, state, and date to find fund principals, family office operators, and real estate investors. Results are enriched automatically via Apollo.io and Hunter.io before being added to the prospect list.
+1. **Source leads from SEC EDGAR** via the EDGAR Lead Finder (`/dashboard/edgar`). Search public Form D filings (private placements) by keyword, state, and date to find fund principals, family office operators, and real estate investors. Results are enriched automatically via Apollo.io and Hunter.io before being added to the prospect list. Enrichment can also be run on-demand from any prospect's edit page.
 2. **Import prospects** via CSV upload or manual entry form.
 3. **Validate email addresses** automatically via ZeroBounce (runs every 30 min, and immediately on prospect add). Only `valid` emails can be enrolled in campaigns.
 4. **Generate personalized email openers** per prospect using Claude (Anthropic). A 1–2 sentence opener tailored to each investor's profile (type, geography, asset class, wealth tier) is passed to Smartlead as a custom field at enrollment time.
@@ -218,14 +218,15 @@ When matched, the prospect is enrolled in the configured High Intent campaign, a
 ### Apollo.io
 
 - Endpoint: `POST https://api.apollo.io/v1/people/match`
-- Used in the EDGAR "+ Add" flow to enrich contacts before adding them as prospects.
+- Used in two places: (1) EDGAR "+ Add" flow — enriches before preview/confirm; (2) Prospect edit page — "Apollo.io" button runs enrichment and fills any blank fields.
 - Returns: email, linkedin_url, title, phone, city, state, company.
+- Enrichment only fills blank fields — existing data is never overwritten.
 - If Apollo returns no email, Hunter.io is tried next.
 
 ### Hunter.io
 
 - Endpoint: `GET https://api.hunter.io/v2/email-finder`
-- Fallback email finder after Apollo.
+- Fallback email finder. Callable standalone or as Apollo fallback from the prospect edit page.
 - Params: first_name, last_name, company, api_key.
 
 ### SEC EDGAR
@@ -252,7 +253,8 @@ All routes live under `/dashboard/` and require login (set via `DASHBOARD_PASSWO
 | `/dashboard/prospects/bulk-enroll` | POST — bulk enroll (skips already-active duplicates) |
 | `/dashboard/prospects/batch-generate-intro` | POST — generate missing Claude intros |
 | `/dashboard/prospects/{id}` | Prospect detail — contact card, intro, enrollment history |
-| `/dashboard/prospects/{id}/edit` | Edit all fields + enroll |
+| `/dashboard/prospects/{id}/edit` | Edit all fields + enroll + enrichment shortcuts |
+| `/dashboard/prospects/{id}/enrich` | POST — run Apollo/Hunter enrichment, fill blank fields |
 | `/dashboard/prospects/{id}/delete` | Delete (cascades enrollments + events) |
 | `/dashboard/prospects/{id}/generate-intro` | POST — regenerate Claude intro (HTMX) |
 | `/dashboard/sequences` | Campaign performance charts |

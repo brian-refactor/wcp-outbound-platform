@@ -178,7 +178,7 @@ app/
       overview.html        KPI cards, funnel chart, activity feed
       prospects.html       Prospect list, filters, bulk enrollment, batch intro generation
       prospect_detail.html Two-column info card, personalized intro card, enrollment history
-      prospect_edit.html   Edit form for all prospect fields + enrollment
+      prospect_edit.html   Edit form for all prospect fields + enrollment + Apollo/Hunter/Google/LinkedIn enrichment
       prospect_new.html    Single prospect add form
       import.html          CSV upload
       sequences.html       Sequence/campaign performance charts and tables
@@ -248,13 +248,13 @@ id, name, params (JSON string of EDGAR search params: keywords/state/start_date/
 
 ### Apollo.io
 - Endpoint: `POST https://api.apollo.io/v1/people/match`
-- Called when a user clicks "+ Add" on an EDGAR result — enriches before showing the preview page.
+- Called in two places: (1) EDGAR "+ Add" flow — enriches before showing the preview page; (2) `POST /prospects/{id}/enrich` on the edit page.
 - Returns: email, linkedin_url, title, phone, city, state, company.
 - If Apollo returns no email, Hunter.io is tried next.
 
 ### Hunter.io
 - Endpoint: `GET https://api.hunter.io/v2/email-finder`
-- Called as fallback after Apollo if no email found.
+- Called as fallback after Apollo if no email found. Also callable directly from the prospect edit page.
 - Params: first_name, last_name, company, api_key.
 - Returns: email, confidence score, number of sources.
 
@@ -294,7 +294,8 @@ id, name, params (JSON string of EDGAR search params: keywords/state/start_date/
 | `/dashboard/prospects/bulk-enroll` | POST — bulk enroll selected prospects (skips already-active duplicates) |
 | `/dashboard/prospects/batch-generate-intro` | POST — generate Claude intros for selected or all missing (up to 100) |
 | `/dashboard/prospects/{id}` | Detail page — contact card, investor profile, personalized intro, enrollment history |
-| `/dashboard/prospects/{id}/edit` | Edit all fields + enroll in sequence |
+| `/dashboard/prospects/{id}/edit` | Edit all fields + enroll in sequence + enrichment buttons |
+| `/dashboard/prospects/{id}/enrich` | POST — run Apollo/Hunter enrichment, fill blank fields, redirect back to edit |
 | `/dashboard/prospects/{id}/delete` | Delete prospect (cascades enrollments + events) |
 | `/dashboard/prospects/{id}/generate-intro` | POST — generate/regenerate Claude intro (HTMX) |
 | `/dashboard/sequences` | Campaign performance charts and table |
