@@ -9,25 +9,6 @@
   family office principals, CIOs, wealth managers, and other accredited investor profiles.
 </p>
 
-{# ── Quick-filter title presets ── #}
-<div class="flex flex-wrap gap-2 mb-4">
-  <span class="text-xs text-gray-400 self-center mr-1">Quick filters:</span>
-  {% set presets = [
-    ('Family Office', 'family office'),
-    ('CIO', 'chief investment officer'),
-    ('Managing Partner', 'managing partner'),
-    ('Wealth Manager', 'wealth manager'),
-    ('Director of Investments', 'director of investments'),
-    ('Portfolio Manager', 'portfolio manager'),
-  ] %}
-  {% for label, title_val in presets %}
-  <a href="/dashboard/leads?title={{ title_val | urlencode }}&searched=1"
-     class="inline-flex items-center px-3 py-1.5 rounded-lg border {% if title == title_val %}border-indigo-400 bg-indigo-50 text-indigo-700{% else %}border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:text-indigo-600{% endif %} text-xs font-medium transition-colors">
-    {{ label }}
-  </a>
-  {% endfor %}
-</div>
-
 {# ── Search form ── #}
 <form method="get" class="bg-white rounded-xl border border-gray-200 p-5 mb-5">
   <input type="hidden" name="searched" value="1">
@@ -49,6 +30,28 @@
       <input type="text" name="location" value="{{ location }}"
              placeholder="e.g. New York, California…"
              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
+    </div>
+  </div>
+
+  {# ── Job title presets ── #}
+  <div class="mb-4">
+    <label class="block text-xs font-medium text-gray-500 mb-2">Title Presets</label>
+    <div class="flex flex-wrap gap-2">
+      {% set presets = [
+        ('Family Office', 'family office'),
+        ('CIO', 'chief investment officer'),
+        ('Managing Partner', 'managing partner'),
+        ('Wealth Manager', 'wealth manager'),
+        ('Director of Investments', 'director of investments'),
+        ('Portfolio Manager', 'portfolio manager'),
+      ] %}
+      {% for label, title_val in presets %}
+      <button type="submit" name="title" value="{{ title_val }}"
+              class="px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors
+                     {% if title == title_val %}border-indigo-400 bg-indigo-50 text-indigo-700{% else %}border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600{% endif %}">
+        {{ label }}
+      </button>
+      {% endfor %}
     </div>
   </div>
 
