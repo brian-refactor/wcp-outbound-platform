@@ -6,7 +6,7 @@ This file is read by Claude Code at the start of every session. It contains stan
 
 ## Project Overview
 
-Internal investor acquisition platform for Willow Creek Partners. Automates outbound cold email outreach via Smartlead, tracks engagement events, syncs to HubSpot CRM, validates emails via ZeroBounce, generates AI-powered personalized email openers via Claude (Anthropic), sources new leads from SEC EDGAR Form D filings, and enriches contacts via Apollo.io and Hunter.io. Managed through a private password-protected web dashboard.
+Internal investor acquisition platform for Willow Creek Partners. Automates outbound cold email outreach via Smartlead, tracks engagement events, syncs to HubSpot CRM, validates emails via ZeroBounce, generates AI-powered personalized email openers via Claude (Anthropic), sources new leads via Apollo.io people search, and enriches contacts via Apollo.io and Hunter.io. Managed through a private password-protected web dashboard.
 
 **Live URL:** https://web-production-eeb6.up.railway.app
 
@@ -50,7 +50,7 @@ Internal investor acquisition platform for Willow Creek Partners. Automates outb
 - Both `web` and `worker` services need their own copies of shared variables (DATABASE_URL, REDIS_URL, etc.).
 
 ### UX Pattern — Preview Before Save
-- Any flow that calls an external API and then creates a DB record must show a preview/confirm page first. The user must be able to cancel without anything being saved. (This pattern is used in the EDGAR add-prospect flow.)
+- Any flow that calls an external API and then creates a DB record must show a preview/confirm page first. The user must be able to cancel without anything being saved. (This pattern is used in the Lead Finder and EDGAR add-prospect flows — both share `edgar_preview.html` via a `confirm_url` template variable.)
 
 ---
 
@@ -106,11 +106,11 @@ The `worker` service Config File Path must be set to `railway.worker.toml` in th
 | `REDIS_URL` | Upstash `rediss://` TLS URL |
 | `SMARTLEAD_API_KEY` | Smartlead API key |
 | `HUBSPOT_ACCESS_TOKEN` | HubSpot Private App bearer token |
-| `HUBSPOT_DEAL_PIPELINE_ID` | HubSpot pipeline for reply deals (`default` for default pipeline) |
-| `HUBSPOT_DEAL_STAGE_ID` | Deal stage ID where new reply deals land |
+| `HUBSPOT_DEAL_PIPELINE_ID` | `890766156` — Outbound - Cold Leads pipeline |
+| `HUBSPOT_DEAL_STAGE_ID` | `1341410439` — New Lead to Contact stage |
 | `ZEROBOUNCE_API_KEY` | ZeroBounce API key — needed on **both** web and worker services |
 | `ANTHROPIC_API_KEY` | Claude API key — web service only; used for personalized intro generation |
-| `APOLLO_API_KEY` | Apollo.io People Match API key — web service only; contact enrichment |
+| `APOLLO_API_KEY` | Apollo.io API key — web service only; enrichment (free) + people search (paid plan required) |
 | `HUNTER_API_KEY` | Hunter.io email finder API key — web service only; email fallback after Apollo |
 | `API_KEY` | X-API-Key for REST API auth (web only; empty = disabled) |
 | `DASHBOARD_USERNAME` | Dashboard login username (web only) |
@@ -126,7 +126,8 @@ The `worker` service Config File Path must be set to `railway.worker.toml` in th
                           - Dashboard UI (Jinja2 + HTMX)
                           - REST API /prospects
                           - Webhook receiver /webhooks/smartlead
-                          - EDGAR lead finder /dashboard/edgar
+                          - Apollo Lead Finder /dashboard/leads
+                          - Monthly Spend Tracker /dashboard/spend
 
   Smartlead ───webhook──▶ /webhooks/smartlead
 
@@ -137,7 +138,7 @@ The `worker` service Config File Path must be set to `railway.worker.toml` in th
 
   All services share: PostgreSQL (Railway) + Redis (Upstash)
   External APIs: Smartlead, HubSpot, ZeroBounce, Anthropic (Claude),
-                 Apollo.io, Hunter.io, SEC EDGAR (public)
+                 Apollo.io, Hunter.io
 ```
 
 ---
@@ -155,6 +156,7 @@ app/
     sequence_enrollment.py SequenceEnrollment model
     email_event.py         EmailEvent model
     saved_search.py        SavedSearch model (EDGAR saved searches)
+    tool_cost.py           ToolCost model (monthly spend tracker)
   routers/
     dashboard.py           All dashboard routes + Jinja2 templates
     webhooks.py            POST /webhooks/smartlead
@@ -165,15 +167,15 @@ app/
     hubspot.py             HubSpot API client (upsert contacts, notes, deals)
     zerobounce.py          ZeroBounce client (validate_batch, get_credits)
     claude_ai.py           Claude API client (generate_personalized_intro)
-    apollo.py              Apollo.io People Match (contact enrichment)
+    apollo.py              Apollo.io — enrich_person (People Match) + search_people (paid)
     hunter.py              Hunter.io email finder (email fallback)
-    edgar.py               SEC EDGAR Form D search + XML parser
+    edgar.py               SEC EDGAR Form D search + XML parser (routes kept, not in nav)
   tasks/
     hubspot_sync.py        Celery task — batch sync email events → HubSpot
     high_intent.py         Celery task — scan and upgrade high-intent enrollments
     email_validation.py    Celery task — batch validate emails via ZeroBounce
   templates/
-    base.html              Sidebar layout, nav, ZeroBounce credit widget (HTMX)
+    base.html              Sidebar layout, nav, ZeroBounce low-credit alert banner (HTMX)
     dashboard/
       overview.html        KPI cards, funnel chart, activity feed
       prospects.html       Prospect list, filters, bulk enrollment, batch intro generation
@@ -184,11 +186,13 @@ app/
       sequences.html       Sequence/campaign performance charts and tables
       sync.html            HubSpot sync health page
       leads.html           Apollo people search lead finder (keyword/title/location filters)
+      spend.html           Monthly spend tracker — tool costs + ZeroBounce credits
       edgar.html           EDGAR Form D lead finder (routes kept, removed from nav)
       edgar_preview.html   Shared preview/confirm page before saving any lead as prospect
       fragments/
         activity_feed.html HTMX auto-refresh fragment
-        zb_credits.html    HTMX fragment for ZeroBounce credit widget in sidebar
+        zb_credits.html    HTMX fragment — ZeroBounce credits card (used on spend page)
+        zb_alert.html      HTMX fragment — site-wide low-credit banner (returns empty if ok)
 migrations/
   versions/                Alembic migration files
 railway.toml               Web service Railway config
@@ -209,7 +213,10 @@ prospect_id, smartlead_campaign_id, campaign_name, track (standard/high_intent),
 prospect_id (nullable), enrollment_id (nullable), event_type (sent/open/click/reply/bounce/unsubscribe/complete), email_subject, domain_used, clicked_url, smartlead_message_id, event_type composite unique `(smartlead_message_id, event_type)` — prevents duplicate events of different types with the same message ID, hubspot_synced_at (NULL until synced), raw_payload, occurred_at.
 
 ### `saved_searches`
-id, name, params (JSON string of EDGAR search params: keywords/state/start_date/end_date), created_at. Used by the EDGAR lead finder to store named searches.
+id, name, params (JSON string of EDGAR search params: keywords/state/start_date/end_date), created_at. Used by the EDGAR lead finder (routes kept, not in nav).
+
+### `tool_costs`
+id, name, category (outreach/crm/enrichment/ai/validation/hosting/infrastructure/other), monthly_cost (numeric), status (active/inactive), notes. Pre-seeded with 8 known tools. Used by the Monthly Spend Tracker page.
 
 ---
 
@@ -231,12 +238,14 @@ id, name, params (JSON string of EDGAR search params: keywords/state/start_date/
 - click events → upsert contact + note
 - reply events → upsert contact + note + Deal named `"WCP Automated Outbound - {name}"`
 - sent/open/bounce/unsubscribe → marked synced, no HubSpot API call made
+- **Active pipeline:** `890766156` (Outbound - Cold Leads) → stage `1341410439` (New Lead to Contact)
 
 ### ZeroBounce
 - Batch validates up to 200 emails per API call.
 - Status mapping: `valid` → valid; `catch-all` → catch-all; `invalid/spamtrap/abuse/do_not_mail/disposable` → invalid; else → unknown.
 - Enrollment is **blocked** for all statuses except `valid` (including `null`).
-- Credits shown live in the sidebar on all pages (HTMX fragment, loads on page load). Turns red below 500.
+- Credits are displayed on the **Monthly Spend page** (`/dashboard/spend`), not the sidebar.
+- A site-wide red banner fires on every page when credits drop below 500 (HTMX fragment `/dashboard/fragments/zb-alert` — returns empty HTML when credits are fine).
 - Email is validated immediately when a new prospect is added (web request), and also in the background batch task every 30 min.
 
 ### Claude (Anthropic)
@@ -248,10 +257,10 @@ id, name, params (JSON string of EDGAR search params: keywords/state/start_date/
 - Batch generation available from prospects list.
 
 ### Apollo.io
-- Endpoint: `POST https://api.apollo.io/v1/people/match`
-- Called in two places: (1) EDGAR "+ Add" flow — enriches before showing the preview page; (2) `POST /prospects/{id}/enrich` on the edit page.
-- Returns: email, linkedin_url, title, phone, city, state, company.
-- If Apollo returns no email, Hunter.io is tried next.
+- **Enrichment** (`enrich_person`): `POST https://api.apollo.io/v1/people/match` — api_key in request body. Free tier. Used on EDGAR/Lead Finder add-prospect flow and prospect edit page.
+- **People Search** (`search_people`): `POST https://api.apollo.io/v1/mixed_people/search` — api_key passed as `X-Api-Key` header (required). **Paid plan required** — free tier returns `API_INACCESSIBLE`. Powers the Lead Finder page.
+- Search params: `q_keywords`, `person_titles` (array), `person_locations` (array), `page`, `per_page` (25).
+- If Apollo returns no email during enrichment, Hunter.io is tried next.
 
 ### Hunter.io
 - Endpoint: `GET https://api.hunter.io/v2/email-finder`
@@ -260,14 +269,9 @@ id, name, params (JSON string of EDGAR search params: keywords/state/start_date/
 - Returns: email, confidence score, number of sources.
 
 ### SEC EDGAR (Form D)
-- Search endpoint: `GET https://efts.sec.gov/LATEST/search-index`
-- Params: `forms=D`, `q`, `locationCode` (2-letter state), `dateRange=custom`, `startdt`, `enddt`, `from`, `size`
-- Response field names: `adsh` (accession number), `ciks[]`, `display_names[]`, `biz_locations[]`, `file_date`
-- Form D XML URL: `https://www.sec.gov/Archives/edgar/data/{cik}/{accession_nodash}/primary_doc.xml`
-- Requires `User-Agent` header per EDGAR access policy.
-- XMLs fetched in parallel via `ThreadPoolExecutor(max_workers=10)`.
-- Related persons filtered for individuals only (entities with LLC/LP/Fund/etc. suffixes are excluded).
-- Deduplicated by (name, entity_name) across filings.
+- Routes are kept in `app/routers/dashboard.py` but the nav link has been removed.
+- EDGAR is not the primary lead source — Apollo people search replaced it in the sidebar.
+- Integration notes retained for reference: search endpoint `GET https://efts.sec.gov/LATEST/search-index`, form D XML parser in `app/integrations/edgar.py`.
 
 ---
 
@@ -302,13 +306,21 @@ id, name, params (JSON string of EDGAR search params: keywords/state/start_date/
 | `/dashboard/sequences` | Campaign performance charts and table |
 | `/dashboard/mailboxes` | Email account warmup status |
 | `/dashboard/sync` | HubSpot sync health — pending count, recent synced events |
-| `/dashboard/edgar` | EDGAR Form D lead finder — search, saved searches, Google/LinkedIn shortcuts |
-| `/dashboard/edgar/add-prospect` | POST — run Apollo+Hunter enrichment, show preview (no save yet) |
-| `/dashboard/edgar/confirm-prospect` | POST — save enriched prospect after user confirms preview |
+| `/dashboard/leads` | Apollo people search — keyword/title/location filters + quick presets |
+| `/dashboard/leads/add-prospect` | POST — enrich via Apollo+Hunter, show preview (no save yet) |
+| `/dashboard/leads/confirm-prospect` | POST — save confirmed prospect |
+| `/dashboard/spend` | Monthly spend tracker — tool costs table + ZeroBounce credits card |
+| `/dashboard/spend/add` | POST — add new tool to spend tracker |
+| `/dashboard/spend/{id}/update` | POST — update tool cost/status |
+| `/dashboard/spend/{id}/delete` | POST — remove tool from tracker |
+| `/dashboard/edgar` | EDGAR Form D lead finder (routes kept, not in nav) |
+| `/dashboard/edgar/add-prospect` | POST — enrich via Apollo+Hunter, show preview |
+| `/dashboard/edgar/confirm-prospect` | POST — save confirmed EDGAR prospect |
 | `/dashboard/edgar/save-search` | POST — save named search to DB |
 | `/dashboard/edgar/saved-searches/{id}/delete` | POST — delete saved search |
 | `/dashboard/fragments/activity` | HTMX auto-refresh fragment (every 30s) |
-| `/dashboard/fragments/zb-credits` | HTMX fragment — ZeroBounce credit widget in sidebar |
+| `/dashboard/fragments/zb-credits` | HTMX fragment — ZeroBounce credits card (spend page) |
+| `/dashboard/fragments/zb-alert` | HTMX fragment — site-wide low-credit banner (empty if ok) |
 
 All times displayed in US/Eastern timezone via Jinja2 `to_et` filter.
 A `fromjson` filter is also registered for parsing saved search params in templates.
@@ -327,8 +339,11 @@ Open and click webhooks were not firing in earlier testing (sent to Smartlead su
 - [x] **Negative reply keywords in Smartlead** — set via MCP on both campaigns. Verify in Smartlead UI.
 - [x] **Set `ANTHROPIC_API_KEY`** on Railway web service — done and confirmed working.
 - [x] **Set `APOLLO_API_KEY`** on Railway web service — done.
+- [x] **Updated HubSpot pipeline** — Outbound - Cold Leads (890766156) / New Lead to Contact (1341410439).
 - [ ] **Set `HUNTER_API_KEY`** on Railway web service — key provided, needs to be added via + New Variable.
+- [ ] **Upgrade Apollo to paid plan** — free tier blocks `/v1/mixed_people/search` (Lead Finder). Code is ready; just needs the upgraded key.
 - [ ] **Add `{{custom_fields.personalized_intro}}` to Smartlead email templates** — place as opening line of email body.
+- [ ] **Fill in tool costs** on `/dashboard/spend` — all pre-seeded tools have $0 placeholder costs.
 
 ### Future Features
 - [ ] Spam event type mapping — waiting on Smartlead to confirm event name for spam reports
@@ -362,4 +377,5 @@ Open and click webhooks were not firing in earlier testing (sent to Smartlead su
 | Bulk enroll allowed duplicate active enrollments | Added check: skip if already `active` in target campaign |
 | Smartlead `unsubscribe_text` is email footer text, not reply keywords | Set it to "Unsubscribe"; reply keyword detection is a separate Smartlead setting |
 | EDGAR API `_id` field includes filename suffix | Use `adsh` for accession number; `ciks[]`/`display_names[]`/`biz_locations[]` are arrays |
-| EDGAR campaign update API | Use `POST /api/v1/campaigns/{id}/settings` — not PUT or PATCH |
+| Apollo `people/search` returns `API_INACCESSIBLE` | Search requires paid plan + `X-Api-Key` header; free tier only covers `people/match` |
+| Multiple Alembic heads block `alembic upgrade head` | Create a merge migration with `down_revision = (head1, head2)` and empty upgrade/downgrade |

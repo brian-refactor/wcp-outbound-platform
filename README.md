@@ -1,6 +1,8 @@
 # WCP Outbound Platform
 
-An internal investor acquisition platform for Willow Creek Partners. Automates cold email outreach via Smartlead, tracks engagement events, syncs activity to HubSpot CRM, validates prospect email addresses via ZeroBounce, generates AI-powered personalized email openers via Claude, sources new leads from SEC EDGAR Form D filings, and enriches contacts via Apollo.io and Hunter.io — all managed through a private web dashboard.
+An internal investor acquisition platform for Willow Creek Partners. Automates cold email outreach via Smartlead, tracks engagement events, syncs activity to HubSpot CRM, validates prospect emails via ZeroBounce, generates AI-powered personalized email openers via Claude, sources new leads via Apollo.io people search, and enriches contacts via Apollo.io and Hunter.io — all managed through a private web dashboard.
+
+**Live URL:** https://web-production-eeb6.up.railway.app
 
 ---
 
@@ -25,15 +27,15 @@ An internal investor acquisition platform for Willow Creek Partners. Automates c
 
 ## What It Does
 
-1. **Source leads from SEC EDGAR** via the EDGAR Lead Finder (`/dashboard/edgar`). Search public Form D filings (private placements) by keyword, state, and date to find fund principals, family office operators, and real estate investors. Results are enriched automatically via Apollo.io and Hunter.io before being added to the prospect list. Enrichment can also be run on-demand from any prospect's edit page.
+1. **Find leads via Apollo.io** (`/dashboard/leads`). Search 275M+ contacts by keyword, job title, and location. Quick-filter presets for common investor profiles (Family Office, CIO, Managing Partner, Wealth Manager, etc.). Results are enriched via Apollo match + Hunter.io before being added to the prospect list via a preview/confirm flow.
 2. **Import prospects** via CSV upload or manual entry form.
 3. **Validate email addresses** automatically via ZeroBounce (runs every 30 min, and immediately on prospect add). Only `valid` emails can be enrolled in campaigns.
 4. **Generate personalized email openers** per prospect using Claude (Anthropic). A 1–2 sentence opener tailored to each investor's profile (type, geography, asset class, wealth tier) is passed to Smartlead as a custom field at enrollment time.
 5. **Enroll prospects** into Smartlead email sequences — individually from the edit or detail page, or in bulk from the list view. Duplicate enrollments in the same active campaign are blocked.
 6. **Receive Smartlead webhooks** for every email event (sent, open, click, reply, bounce, unsubscribe, sequence complete). Events are stored in the `email_events` table.
 7. **High Intent scan** runs every 15 min — if a prospect has ≥ 1 link click older than 48 hours with no reply, they are moved to a "High Intent" Smartlead campaign automatically.
-8. **Sync to HubSpot** every 15 min — upserts contacts and creates a CRM note for each email event. On reply, a Deal is created in HubSpot.
-9. **Dashboard** shows live KPI stats, campaign funnel charts, recent activity feed, and a ZeroBounce credit balance in the sidebar.
+8. **Sync to HubSpot** every 15 min — upserts contacts and creates a CRM note for each email event. On reply, a Deal is created in the **Outbound - Cold Leads** pipeline at **New Lead to Contact** stage.
+9. **Track monthly spend** (`/dashboard/spend`). All tool subscriptions in one place with monthly and annual run rate totals. ZeroBounce credit balance shown here; a site-wide red banner fires on all pages when credits drop below 500.
 
 ---
 
@@ -47,7 +49,8 @@ An internal investor acquisition platform for Willow Creek Partners. Automates c
                         │  - Dashboard UI (Jinja2/HTMX)   │
                         │  - REST API /prospects          │
                         │  - Webhook receiver /webhooks   │
-                        │  - EDGAR lead finder            │
+                        │  - Apollo Lead Finder           │
+                        │  - Monthly Spend Tracker        │
                         │                                 │
   Smartlead ───webhook──▶│                                │
                         │                                 │
@@ -62,7 +65,6 @@ An internal investor acquisition platform for Willow Creek Partners. Automates c
                      HubSpot CRM   ZeroBounce API
                      Smartlead API  Anthropic (Claude)
                      Apollo.io      Hunter.io
-                     SEC EDGAR (public)
 ```
 
 ---
@@ -81,8 +83,8 @@ An internal investor acquisition platform for Willow Creek Partners. Automates c
 | CRM | HubSpot (Private App, REST API v3/v4) |
 | Email validation | ZeroBounce Batch API |
 | AI personalization | Anthropic Claude (claude-haiku-4-5) |
-| Contact enrichment | Apollo.io (People Match) + Hunter.io (email finder) |
-| Lead sourcing | SEC EDGAR Form D public API |
+| Contact enrichment | Apollo.io (People Match + People Search) + Hunter.io |
+| Lead sourcing | Apollo.io people search (paid plan required for search) |
 | Deployment | Railway (two services: web + worker) |
 | Python | 3.12 |
 
@@ -160,6 +162,21 @@ Named EDGAR search queries for quick re-use.
 | params | str | JSON string: `{keywords, state, start_date, end_date}` |
 | created_at | timestamptz | |
 
+### `tool_costs`
+
+Monthly spend tracker — one row per tool/subscription.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | str | Primary key |
+| name | str | Tool name (e.g. "Smartlead") |
+| category | str | `outreach` / `crm` / `enrichment` / `ai` / `validation` / `hosting` / `infrastructure` / `other` |
+| monthly_cost | numeric(10,2) | Monthly subscription cost |
+| status | str | `active` / `inactive` |
+| notes | str | Optional notes |
+
+Pre-seeded with: Smartlead, HubSpot, ZeroBounce, Anthropic, Apollo.io, Hunter.io, Railway, Upstash Redis.
+
 ---
 
 ## Campaign Logic
@@ -201,13 +218,13 @@ When matched, the prospect is enrolled in the configured High Intent campaign, a
 - Auth: Private App token (Bearer header).
 - Required scopes: `crm.objects.contacts.read/write`, `crm.objects.deals.read/write`
 - **Contact upsert + note**: on click and reply events.
-- **Deal creation**: on `reply` event — `"WCP Automated Outbound - {prospect name}"` in the configured pipeline/stage.
+- **Deal creation**: on `reply` event — `"WCP Automated Outbound - {prospect name}"` in pipeline **Outbound - Cold Leads** (ID: `890766156`), stage **New Lead to Contact** (ID: `1341410439`).
 
 ### ZeroBounce
 
 - **Batch validation** runs every 30 min — validates all unvalidated emails in batches of 200.
 - Also validates immediately when a new prospect is added via the dashboard.
-- Credits shown live in the sidebar on every page (HTMX fragment). Turns red below 500.
+- Credit balance shown on the **Monthly Spend page**. A red banner appears site-wide when credits drop below 500.
 
 ### Claude (Anthropic)
 
@@ -217,26 +234,21 @@ When matched, the prospect is enrolled in the configured High Intent campaign, a
 
 ### Apollo.io
 
-- Endpoint: `POST https://api.apollo.io/v1/people/match`
-- Used in two places: (1) EDGAR "+ Add" flow — enriches before preview/confirm; (2) Prospect edit page — "Apollo.io" button runs enrichment and fills any blank fields.
-- Returns: email, linkedin_url, title, phone, city, state, company.
+- **Enrichment** (`enrich_person`): `POST /v1/people/match` — api_key in request body. Free tier. Used in add-prospect flows and the prospect edit page.
+- **People Search** (`search_people`): `POST /v1/mixed_people/search` — api_key as `X-Api-Key` header. **Requires paid plan.** Powers the Lead Finder page (`/dashboard/leads`).
 - Enrichment only fills blank fields — existing data is never overwritten.
-- If Apollo returns no email, Hunter.io is tried next.
+- If Apollo returns no email, Hunter.io is tried as fallback.
 
 ### Hunter.io
 
 - Endpoint: `GET https://api.hunter.io/v2/email-finder`
-- Fallback email finder. Callable standalone or as Apollo fallback from the prospect edit page.
+- Fallback email finder after Apollo. Also callable standalone from the prospect edit page.
 - Params: first_name, last_name, company, api_key.
 
-### SEC EDGAR
+### SEC EDGAR (Form D)
 
-- Searches public Form D filings (private placement disclosures) for accredited investor contacts.
-- Search: `GET https://efts.sec.gov/LATEST/search-index?forms=D&q=...`
-- Form D XML fetched per filing to extract related persons, offering details, and issuer phone.
-- Results shown in `/dashboard/edgar` with Google and LinkedIn search shortcuts per contact.
-- Supports saved named searches (stored in `saved_searches` table).
-- Last search is persisted in the session — navigating away and back restores results.
+- Routes kept in the codebase but removed from the sidebar nav — replaced by Apollo Lead Finder.
+- Available at `/dashboard/edgar` if needed directly.
 
 ---
 
@@ -260,13 +272,16 @@ All routes live under `/dashboard/` and require login (set via `DASHBOARD_PASSWO
 | `/dashboard/sequences` | Campaign performance charts |
 | `/dashboard/mailboxes` | Email account warmup status |
 | `/dashboard/sync` | HubSpot sync health |
-| `/dashboard/edgar` | EDGAR Form D lead finder |
-| `/dashboard/edgar/add-prospect` | POST — enrich via Apollo+Hunter, show preview |
-| `/dashboard/edgar/confirm-prospect` | POST — save confirmed prospect |
-| `/dashboard/edgar/save-search` | POST — save named search |
-| `/dashboard/edgar/saved-searches/{id}/delete` | POST — delete saved search |
-| `/dashboard/fragments/activity` | HTMX auto-refresh fragment |
-| `/dashboard/fragments/zb-credits` | HTMX ZeroBounce credit widget |
+| `/dashboard/leads` | Apollo people search — keyword/title/location + quick-filter presets |
+| `/dashboard/leads/add-prospect` | POST — enrich via Apollo+Hunter, show preview |
+| `/dashboard/leads/confirm-prospect` | POST — save confirmed prospect |
+| `/dashboard/spend` | Monthly spend tracker — tool costs + ZeroBounce credits |
+| `/dashboard/spend/add` | POST — add tool |
+| `/dashboard/spend/{id}/update` | POST — edit tool cost/status |
+| `/dashboard/spend/{id}/delete` | POST — remove tool |
+| `/dashboard/fragments/activity` | HTMX auto-refresh activity feed |
+| `/dashboard/fragments/zb-credits` | HTMX ZeroBounce credits card (spend page) |
+| `/dashboard/fragments/zb-alert` | HTMX low-credit banner (empty when credits ≥ 500) |
 
 ---
 
@@ -322,11 +337,11 @@ venv\Scripts\celery.exe -A app.worker beat -l info
 | `REDIS_URL` | both | Redis broker URL — use `rediss://` for TLS (Upstash) |
 | `SMARTLEAD_API_KEY` | both | Smartlead API key |
 | `HUBSPOT_ACCESS_TOKEN` | both | HubSpot Private App bearer token |
-| `HUBSPOT_DEAL_PIPELINE_ID` | both | HubSpot pipeline ID (`default` for default pipeline) |
-| `HUBSPOT_DEAL_STAGE_ID` | both | HubSpot deal stage ID |
+| `HUBSPOT_DEAL_PIPELINE_ID` | both | `890766156` — Outbound - Cold Leads pipeline |
+| `HUBSPOT_DEAL_STAGE_ID` | both | `1341410439` — New Lead to Contact stage |
 | `ZEROBOUNCE_API_KEY` | both | ZeroBounce API key |
 | `ANTHROPIC_API_KEY` | web | Claude API key — personalized intro generation |
-| `APOLLO_API_KEY` | web | Apollo.io People Match — contact enrichment |
+| `APOLLO_API_KEY` | web | Apollo.io — enrichment (free) + people search (paid plan required) |
 | `HUNTER_API_KEY` | web | Hunter.io — email finder fallback after Apollo |
 | `API_KEY` | web | X-API-Key for REST API. Empty = disabled |
 | `DASHBOARD_USERNAME` | web | Login username |
@@ -348,6 +363,8 @@ alembic history
 ```
 
 The `web` Railway service runs `alembic upgrade head` automatically on every deploy.
+
+> If you get "Multiple head revisions" on deploy, create a merge migration: `down_revision = ('head1_id', 'head2_id')` with empty `upgrade()`/`downgrade()` functions.
 
 ---
 
@@ -392,15 +409,23 @@ Two Railway services from the same GitHub repo. Push to `master` → both servic
 ### Smartlead Webhook Testing
 - [ ] Open event → webhook → EmailEvent recorded
 - [ ] Click event → webhook → EmailEvent recorded + HubSpot contact upserted + note
-- [ ] Reply event → enrollment completed + HubSpot deal created
+- [ ] Reply event → enrollment completed + HubSpot deal created in Outbound - Cold Leads
 - [ ] High Intent upgrade: ≥ 1 click (48h+) + no reply → 15-min scan upgrades track
 
 ### Pending Manual Configuration
 - [x] Negative reply keywords in Smartlead — set on both campaigns
 - [x] `ANTHROPIC_API_KEY` on Railway web service
 - [x] `APOLLO_API_KEY` on Railway web service
+- [x] HubSpot pipeline updated — Outbound - Cold Leads / New Lead to Contact
 - [ ] `HUNTER_API_KEY` on Railway web service — add via + New Variable
+- [ ] Upgrade Apollo to paid plan — required for Lead Finder people search
 - [ ] Add `{{custom_fields.personalized_intro}}` to Smartlead email templates
+- [ ] Fill in actual tool costs on `/dashboard/spend`
+
+### Future Lead Sources
+- [ ] **SEC Form ADV** — Registered investment advisers (RIAs). Free public SEC API. Warm intro path to HNWI clients.
+- [ ] **SEC 13F Filings** — Institutional investors with >$100M AUM. Same EDGAR infrastructure, different form type.
+- [ ] **Form 990 / Family Foundations** — ProPublica Nonprofit API. Trustees of large family foundations are prime UHNWI targets.
 
 ### Future Enhancements
 - [ ] Spam event type mapping — waiting on Smartlead to confirm event name
@@ -419,5 +444,6 @@ Two Railway services from the same GitHub repo. Push to `master` → both servic
 - **Smartlead webhook dedup**: `email_events` uses a composite unique on `(smartlead_message_id, event_type)`.
 - **Smartlead `unsubscribe_text`**: This is the footer link text, not a reply keyword filter. Set to `"Unsubscribe"`.
 - **Celery result backend**: Do not add one — it would exhaust the Upstash 500k/month free tier.
-- **EDGAR API field names**: Use `adsh` for accession number, `ciks[]`/`display_names[]`/`biz_locations[]` are arrays.
+- **Apollo people search**: Requires paid plan + `X-Api-Key` header. Free tier only covers `people/match` (enrichment).
+- **Multiple Alembic heads**: Create a merge migration with `down_revision = ('head1', 'head2')` and empty functions.
 - **Bulk enroll duplicates**: Skips prospects already `active` in the target campaign.
