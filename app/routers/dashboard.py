@@ -1372,12 +1372,29 @@ def edgar_confirm_prospect(
 # Apollo Lead Finder
 # ---------------------------------------------------------------------------
 
+EXECUTIVE_TITLES = [
+    "CEO", "Chief Executive Officer",
+    "President",
+    "Founder", "Co-Founder",
+    "Owner",
+    "Managing Partner",
+    "Managing Director",
+    "Chairman",
+    "General Partner",
+    "Principal",
+    "Chief Financial Officer", "CFO",
+    "Chief Investment Officer", "CIO",
+    "Chief Operating Officer", "COO",
+]
+
+
 @router.get("/leads", response_class=HTMLResponse)
 def leads_search(
     request: Request,
     keywords: str = Query(""),
     title: str = Query(""),
     location: str = Query(""),
+    executives: str = Query(""),
     page: int = Query(1),
     searched: str = Query(""),
 ):
@@ -1385,9 +1402,15 @@ def leads_search(
     total = 0
     error = None
     is_searched = bool(searched)
+    is_executives = bool(executives)
 
     if is_searched:
-        titles = [title.strip()] if title.strip() else []
+        if is_executives:
+            titles = EXECUTIVE_TITLES
+        elif title.strip():
+            titles = [title.strip()]
+        else:
+            titles = []
         locations = [location.strip()] if location.strip() else []
         try:
             results, total = apollo_client.search_people(
@@ -1398,7 +1421,7 @@ def leads_search(
             )
         except Exception as e:
             logger.error("Apollo people search error: %s", e)
-            error = "Apollo search failed. Check your API key or try again."
+            error = f"Apollo search failed: {e}"
 
     return templates.TemplateResponse(
         "dashboard/leads.html",
@@ -1412,6 +1435,7 @@ def leads_search(
             "keywords": keywords,
             "title": title,
             "location": location,
+            "executives": is_executives,
             "searched": is_searched,
             "error": error,
         },
