@@ -119,15 +119,20 @@
         <td class="px-5 py-3">
           {% if row.name %}
           <div class="font-medium text-gray-900">{{ row.name }}</div>
-          {% if row.title %}
-          <div class="text-xs text-gray-400 mt-0.5">{{ row.title }}</div>
-          {% endif %}
+          {% if row.title %}<div class="text-xs text-gray-400 mt-0.5">{{ row.title }}</div>{% endif %}
+          {% set loc = [] %}
+          {% if row.person_city %}{% set loc = loc + [row.person_city] %}{% endif %}
+          {% if row.person_state %}{% set loc = loc + [row.person_state] %}{% endif %}
+          {% if loc %}<div class="text-xs text-gray-400 mt-0.5">{{ loc | join(', ') }}</div>{% endif %}
           {% else %}
           <span class="text-gray-400 italic text-xs">No signatory listed</span>
           {% endif %}
         </td>
         <td class="px-4 py-3 text-gray-700 max-w-xs">
-          {{ row.entity_name or '—' }}
+          <div>{{ row.entity_name or '—' }}</div>
+          {% if row.issuer_phone %}
+          <div class="text-xs text-gray-400 mt-0.5">{{ row.issuer_phone }}</div>
+          {% endif %}
         </td>
         <td class="px-4 py-3">
           {% if row.industry %}
@@ -144,15 +149,31 @@
         <td class="px-4 py-3 text-right text-gray-600 text-xs whitespace-nowrap">
           {% if row.total_offering and row.total_offering > 0 %}
             {% if row.total_offering >= 1000000 %}
-              ${{ '%.1f' | format(row.total_offering / 1000000) }}M
+            <div>${{ '%.1f' | format(row.total_offering / 1000000) }}M raised</div>
             {% elif row.total_offering >= 1000 %}
-              ${{ '%.0f' | format(row.total_offering / 1000) }}K
+            <div>${{ '%.0f' | format(row.total_offering / 1000) }}K raised</div>
             {% else %}
-              ${{ row.total_offering }}
+            <div>${{ row.total_offering }} raised</div>
             {% endif %}
-          {% else %}
-            —
           {% endif %}
+          {% if row.total_sold and row.total_sold > 0 %}
+            {% if row.total_sold >= 1000000 %}
+            <div class="text-gray-400">${{ '%.1f' | format(row.total_sold / 1000000) }}M sold</div>
+            {% elif row.total_sold >= 1000 %}
+            <div class="text-gray-400">${{ '%.0f' | format(row.total_sold / 1000) }}K sold</div>
+            {% endif %}
+          {% endif %}
+          {% if row.num_investors and row.num_investors > 0 %}
+          <div class="text-gray-400">{{ row.num_investors }} investor{{ 's' if row.num_investors != 1 else '' }}</div>
+          {% endif %}
+          {% if row.min_investment and row.min_investment > 0 %}
+            {% if row.min_investment >= 1000000 %}
+            <div class="text-gray-400">min ${{ '%.1f' | format(row.min_investment / 1000000) }}M</div>
+            {% elif row.min_investment >= 1000 %}
+            <div class="text-gray-400">min ${{ '%.0f' | format(row.min_investment / 1000) }}K</div>
+            {% endif %}
+          {% endif %}
+          {% if not row.total_offering %}—{% endif %}
         </td>
         <td class="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
           {{ row.date_of_first_sale or row.file_date or '—' }}

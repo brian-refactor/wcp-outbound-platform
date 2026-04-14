@@ -240,12 +240,34 @@ def _parse_form_d_xml(xml_text: str) -> dict:
     # Date of first sale
     date_of_first_sale = _child_text(root, "dateOfFirstSale")
 
+    # Issuer phone
+    issuer_phone = _child_text(root, "issuerPhoneNumber")
+
+    # Offering details
+    total_sold_raw = _child_text(root, "totalAmountSold")
+    try:
+        total_sold = int(float(total_sold_raw)) if total_sold_raw else 0
+    except (ValueError, TypeError):
+        total_sold = 0
+
+    min_investment_raw = _child_text(root, "minimumInvestmentAccepted")
+    try:
+        min_investment = int(float(min_investment_raw)) if min_investment_raw else 0
+    except (ValueError, TypeError):
+        min_investment = 0
+
+    num_investors_raw = _child_text(root, "totalNumberAlreadyInvested")
+    try:
+        num_investors = int(num_investors_raw) if num_investors_raw else 0
+    except (ValueError, TypeError):
+        num_investors = 0
+
     # Related persons
     related_persons = []
     for el in root.iter():
         if el.tag.split("}")[-1] != "relatedPersonInfo":
             continue
-        first = last = title = ""
+        first = last = title = person_city = person_state = ""
         for child in el:
             local = child.tag.split("}")[-1]
             if local == "relatedPersonName":
@@ -253,15 +275,27 @@ def _parse_form_d_xml(xml_text: str) -> dict:
                 last = _child_text(child, "lastName")
             elif local == "relatedPersonTitle":
                 title = _child_text(child, "officerTitle")
+            elif local == "relatedPersonAddress":
+                person_city = _child_text(child, "city")
+                person_state = _child_text(child, "stateOrCountry")
         name = f"{first} {last}".strip()
         if name:
-            related_persons.append({"name": name, "title": title})
+            related_persons.append({
+                "name": name,
+                "title": title,
+                "person_city": person_city,
+                "person_state": person_state,
+            })
 
     return {
         "entity_name": entity_name,
         "state": state,
         "industry": industry,
         "total_offering": total_offering,
+        "total_sold": total_sold,
+        "min_investment": min_investment,
+        "num_investors": num_investors,
+        "issuer_phone": issuer_phone,
         "date_of_first_sale": date_of_first_sale,
         "related_persons": related_persons,
     }
