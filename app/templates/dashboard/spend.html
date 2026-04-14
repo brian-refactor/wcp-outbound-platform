@@ -4,8 +4,8 @@
 
 {% block content %}
 
-{# ── Run rate card ── #}
-<div class="grid grid-cols-3 gap-4 mb-6">
+{# ── Run rate + efficiency cards ── #}
+<div class="grid grid-cols-2 gap-4 mb-4 lg:grid-cols-5">
   <div class="bg-white rounded-xl border border-gray-200 px-6 py-5">
     <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Monthly Run Rate</div>
     <div class="text-3xl font-bold text-gray-900">${{ '%.2f' | format(total_active) }}</div>
@@ -20,6 +20,26 @@
     <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Inactive / Paused</div>
     <div class="text-3xl font-bold text-gray-400">${{ '%.2f' | format(total_inactive) }}</div>
     <div class="text-xs text-gray-400 mt-1">{{ inactive_count }} inactive tool{{ 's' if inactive_count != 1 else '' }}</div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-200 px-6 py-5">
+    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Cost per Email Sent</div>
+    {% if cost_per_email is not none %}
+    <div class="text-3xl font-bold text-gray-900">${{ '%.4f' | format(cost_per_email) }}</div>
+    <div class="text-xs text-gray-400 mt-1">{{ '{:,}'.format(emails_sent_month) }} sent this month</div>
+    {% else %}
+    <div class="text-3xl font-bold text-gray-300">—</div>
+    <div class="text-xs text-gray-400 mt-1">no emails sent this month</div>
+    {% endif %}
+  </div>
+  <div class="bg-white rounded-xl border border-gray-200 px-6 py-5">
+    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Cost per HubSpot Lead</div>
+    {% if cost_per_lead is not none %}
+    <div class="text-3xl font-bold text-gray-900">${{ '%.2f' | format(cost_per_lead) }}</div>
+    <div class="text-xs text-gray-400 mt-1">{{ hs_leads_month }} repl{{ 'ies' if hs_leads_month != 1 else 'y' }} this month</div>
+    {% else %}
+    <div class="text-3xl font-bold text-gray-300">—</div>
+    <div class="text-xs text-gray-400 mt-1">no replies this month</div>
+    {% endif %}
   </div>
 </div>
 

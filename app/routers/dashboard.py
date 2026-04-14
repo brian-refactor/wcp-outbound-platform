@@ -1597,18 +1597,51 @@ def spend_page(
     tools = db.query(ToolCost).order_by(ToolCost.category, ToolCost.name).all()
     active = [t for t in tools if t.status == "active"]
     inactive = [t for t in tools if t.status != "active"]
+    total_active = float(sum(t.monthly_cost for t in active))
+
+    # Current-month window
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    emails_sent_month = (
+        db.query(func.count(EmailEvent.id))
+        .filter(
+            EmailEvent.event_type == "sent",
+            EmailEvent.occurred_at >= month_start,
+        )
+        .scalar()
+    ) or 0
+
+    # Distinct prospects who replied this month → each becomes a HubSpot deal
+    hs_leads_month = (
+        db.query(func.count(func.distinct(EmailEvent.prospect_id)))
+        .filter(
+            EmailEvent.event_type == "reply",
+            EmailEvent.prospect_id.isnot(None),
+            EmailEvent.occurred_at >= month_start,
+        )
+        .scalar()
+    ) or 0
+
+    cost_per_email = (total_active / emails_sent_month) if emails_sent_month else None
+    cost_per_lead = (total_active / hs_leads_month) if hs_leads_month else None
+
     return templates.TemplateResponse(
         "dashboard/spend.html",
         {
             "request": request,
             "active_page": "spend",
             "tools": tools,
-            "total_active": float(sum(t.monthly_cost for t in active)),
+            "total_active": total_active,
             "total_inactive": float(sum(t.monthly_cost for t in inactive)),
             "active_count": len(active),
             "inactive_count": len(inactive),
             "editing": editing,
             "categories": SPEND_CATEGORIES,
+            "emails_sent_month": emails_sent_month,
+            "hs_leads_month": hs_leads_month,
+            "cost_per_email": cost_per_email,
+            "cost_per_lead": cost_per_lead,
         },
     )
 
