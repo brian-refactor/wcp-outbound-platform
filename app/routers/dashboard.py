@@ -822,7 +822,7 @@ def generate_intro(prospect_id: str, request: Request, db: Session = Depends(get
 # ---------------------------------------------------------------------------
 
 @router.get("/prospects/{prospect_id}/edit", response_class=HTMLResponse)
-def prospect_edit_form(prospect_id: str, request: Request, db: Session = Depends(get_db)):
+def prospect_edit_form(prospect_id: str, request: Request, db: Session = Depends(get_db), enrich_msg: Optional[str] = None):
     prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
     if not prospect:
         return HTMLResponse("<h1>Prospect not found</h1>", status_code=404)
@@ -840,6 +840,7 @@ def prospect_edit_form(prospect_id: str, request: Request, db: Session = Depends
             "prospect": prospect,
             "active_page": "prospects",
             "error": None,
+            "enrich_msg": enrich_msg,
             "campaigns": campaigns,
             "campaigns_error": campaigns_error,
 
@@ -1193,6 +1194,66 @@ def edgar_delete_saved_search(
     db.query(SavedSearch).filter(SavedSearch.id == search_id).delete()
     db.commit()
     return RedirectResponse(url="/dashboard/edgar", status_code=303)
+
+
+@router.post("/prospects/{prospect_id}/enrich", response_class=HTMLResponse)
+def prospect_enrich(
+    prospect_id: str,
+    db: Session = Depends(get_db),
+    source: str = Form("apollo"),
+):
+    prospect = db.query(Prospect).filter(Prospect.id == prospect_id).first()
+    if not prospect:
+        return HTMLResponse("<h1>Prospect not found</h1>", status_code=404)
+
+    first_name = prospect.first_name or ""
+    last_name = prospect.last_name or ""
+    company = prospect.company or ""
+
+    enriched: dict = {}
+    status_msg = "Could not enrich — name and company are required."
+
+    if first_name and last_name and company:
+        if source in ("apollo", "both"):
+            apollo_result = apollo_client.enrich_person(first_name, last_name, company)
+            if apollo_result:
+                enriched = apollo_result
+                status_msg = "Apollo enrichment complete."
+            else:
+                status_msg = "Apollo found no results."
+
+        if source in ("hunter", "both") or (source == "apollo" and not enriched.get("email")):
+            hunter_result = hunter_client.find_email(first_name, last_name, company)
+            if hunter_result and hunter_result.get("email"):
+                enriched["email"] = hunter_result["email"]
+                status_msg = f"Hunter.io found email (confidence {hunter_result.get('confidence', '?')}%)."
+                if source == "apollo":
+                    status_msg = "Apollo found no email — Hunter.io fallback used."
+            elif source == "hunter":
+                status_msg = "Hunter.io found no email."
+
+    # Apply enriched fields only where prospect field is currently blank
+    updated_fields = []
+    field_map = {
+        "email": "email",
+        "title": "title",
+        "phone": "phone",
+        "linkedin_url": "linkedin_url",
+        "company": "company",
+    }
+    for apollo_key, prospect_attr in field_map.items():
+        if enriched.get(apollo_key) and not getattr(prospect, prospect_attr):
+            setattr(prospect, prospect_attr, enriched[apollo_key])
+            updated_fields.append(prospect_attr)
+
+    if updated_fields:
+        db.commit()
+        status_msg += f" Updated: {', '.join(updated_fields)}."
+
+    return RedirectResponse(
+        url=f"/dashboard/prospects/{prospect_id}/edit?enrich_msg={status_msg}",
+        status_code=303,
+    )
 
 
 @router.post("/edgar/add-prospect", response_class=HTMLResponse)
