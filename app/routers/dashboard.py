@@ -1443,36 +1443,9 @@ def leads_add_prospect(
     if existing:
         return RedirectResponse(url=f"/dashboard/prospects/{existing.id}", status_code=303)
 
-    # Apollo search results may already include email/phone; if not, try enrichment
-    email_source = None
-    enriched: dict = {
-        "email": email or None,
-        "title": title or None,
-        "company": company or None,
-        "linkedin_url": linkedin_url or None,
-        "phone": phone or None,
-        "city": city or None,
-        "state": state or None,
-    }
-
-    if enriched["email"]:
-        email_source = "Apollo"
-    elif first_name and last_name and company:
-        apollo_result = apollo_client.enrich_person(first_name, last_name, company)
-        if apollo_result:
-            for k, v in apollo_result.items():
-                if v and not enriched.get(k):
-                    enriched[k] = v
-            if enriched.get("email"):
-                email_source = "Apollo"
-
-    if not email_source and first_name and last_name and company:
-        hunter_result = hunter_client.find_email(first_name, last_name, company)
-        if hunter_result:
-            enriched["email"] = hunter_result["email"]
-            email_source = f"Hunter.io (confidence {hunter_result.get('confidence', '?')}%)"
-
-    geography = ", ".join(filter(None, [enriched.get("city"), enriched.get("state")])) or None
+    # Use only what the search result returned — no automatic enrichment
+    email_source = "Apollo" if email else None
+    geography = ", ".join(filter(None, [city, state])) or None
 
     return templates.TemplateResponse(
         "dashboard/edgar_preview.html",
@@ -1482,11 +1455,11 @@ def leads_add_prospect(
             "confirm_url": "/dashboard/leads/confirm-prospect",
             "first_name": first_name,
             "last_name": last_name,
-            "email": enriched.get("email") or "",
-            "title": enriched.get("title") or title,
-            "company": enriched.get("company") or company,
-            "phone": enriched.get("phone") or "",
-            "linkedin_url": enriched.get("linkedin_url") or "",
+            "email": email or "",
+            "title": title or "",
+            "company": company or "",
+            "phone": phone or "",
+            "linkedin_url": linkedin_url or "",
             "geography": geography,
             "email_source": email_source,
             "return_url": return_url,
