@@ -14,8 +14,8 @@ class Settings(BaseSettings):
 
     # HubSpot
     hubspot_access_token: str = ""  # private app token
-    hubspot_deal_pipeline_id: str = "default"       # WCP Deals pipeline
-    hubspot_deal_stage_id: str = "1114790192"       # Prospect Outreach stage
+    hubspot_deal_pipeline_id: str = "890766156"      # Outbound - Cold Leads pipeline
+    hubspot_deal_stage_id: str = "1341410439"       # New Lead to Contact stage
 
     # ZeroBounce
     zerobounce_api_key: str = ""  # from zerobounce.net account
