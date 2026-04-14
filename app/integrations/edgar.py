@@ -132,17 +132,39 @@ def enrich_filings(filings: list[dict]) -> list[dict]:
     # Sort back to original order by file_date desc
     enriched.sort(key=lambda x: x.get("file_date", ""), reverse=True)
 
-    # Flatten to one row per contact person
+    # Flatten to one row per contact person, deduplicating as we go
     rows = []
+    seen: set[tuple] = set()  # (normalized_name, normalized_entity)
+
     for filing in enriched:
         persons = filing.get("related_persons") or []
-        if persons:
-            for person in persons:
-                rows.append({**filing, **person})
-        else:
-            rows.append({**filing, "name": "", "title": ""})
+        for person in persons:
+            name = person.get("name", "").strip()
+            if not name or _is_entity_name(name):
+                continue
+            entity = (filing.get("entity_name") or "").strip()
+            key = (name.lower(), entity.lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append({**filing, **person})
 
     return rows
+
+
+# Suffixes that indicate a related-person entry is an organization, not an individual
+_ENTITY_SUFFIXES = (
+    " llc", " lp", " l.p.", " ltd", " inc", " corp", " co.", " fund",
+    " trust", " partners", " group", " family office", " management",
+    " capital", " investments", " associates", " advisors", " advisers",
+)
+
+def _is_entity_name(name: str) -> bool:
+    """Return True if the name looks like a company rather than a person."""
+    lower = name.lower()
+    if lower.startswith("n/a"):
+        return True
+    return any(lower.endswith(suffix) or f"{suffix} " in lower for suffix in _ENTITY_SUFFIXES)
 
 
 def fetch_filing_detail(cik: str, accession_no: str) -> Optional[dict]:
