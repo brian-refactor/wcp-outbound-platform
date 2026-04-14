@@ -35,7 +35,7 @@ An internal investor acquisition platform for Willow Creek Partners. Automates c
 6. **Receive Smartlead webhooks** for every email event (sent, open, click, reply, bounce, unsubscribe, sequence complete). Events are stored in the `email_events` table.
 7. **High Intent scan** runs every 15 min — if a prospect has ≥ 1 link click older than 48 hours with no reply, they are moved to a "High Intent" Smartlead campaign automatically.
 8. **Sync to HubSpot** every 15 min — upserts contacts and creates a CRM note for each email event. On reply, a Deal is created in the **Outbound - Cold Leads** pipeline at **New Lead to Contact** stage.
-9. **Track monthly spend** (`/dashboard/spend`). All tool subscriptions in one place with monthly and annual run rate totals. ZeroBounce credit balance shown here.
+9. **Track monthly spend** (`/dashboard/spend`). All tool subscriptions in one place with monthly and annual run rate totals. Two efficiency metrics computed from current-month activity: **cost per email sent** (monthly run rate ÷ sent events this month) and **cost per HubSpot lead** (monthly run rate ÷ distinct prospects who replied this month). ZeroBounce credit balance also shown here.
 
 ---
 
@@ -224,7 +224,7 @@ When matched, the prospect is enrolled in the configured High Intent campaign, a
 
 - **Batch validation** runs every 30 min — validates all unvalidated emails in batches of 200.
 - Also validates immediately when a new prospect is added via the dashboard.
-- Credit balance shown on the **Monthly Spend page**. A red banner appears site-wide when credits drop below 500.
+- Credit balance shown on the **Monthly Spend page** via HTMX fragment. No site-wide banner.
 
 ### Claude (Anthropic)
 
@@ -278,7 +278,7 @@ All routes live under `/dashboard/` and require login (set via `DASHBOARD_PASSWO
 | `/dashboard/leads` | Apollo people search — keyword, title, location, executives, company size, revenue, industry, has-email filters + quick-filter presets |
 | `/dashboard/leads/add-prospect` | POST — enrich via Apollo+Hunter, show preview |
 | `/dashboard/leads/confirm-prospect` | POST — save confirmed prospect |
-| `/dashboard/spend` | Monthly spend tracker — tool costs + ZeroBounce credits |
+| `/dashboard/spend` | Monthly spend tracker — run rate cards, cost/email sent, cost/HubSpot lead (current month), tool costs table, ZeroBounce credits |
 | `/dashboard/spend/add` | POST — add tool |
 | `/dashboard/spend/{id}/update` | POST — edit tool cost/status |
 | `/dashboard/spend/{id}/delete` | POST — remove tool |

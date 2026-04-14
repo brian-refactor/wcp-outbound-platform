@@ -186,7 +186,7 @@ app/
       sequences.html       Sequence/campaign performance charts and tables
       sync.html            HubSpot sync health page
       leads.html           Apollo people search lead finder (keyword/title/location filters)
-      spend.html           Monthly spend tracker — tool costs + ZeroBounce credits
+      spend.html           Monthly spend tracker — tool costs + efficiency metrics (cost/email, cost/lead) + ZeroBounce credits
       edgar.html           EDGAR Form D lead finder (routes kept, removed from nav)
       edgar_preview.html   Shared preview/confirm page before saving any lead as prospect
       fragments/
@@ -319,7 +319,7 @@ id, name, category (outreach/crm/enrichment/ai/validation/hosting/infrastructure
 | `/dashboard/leads` | Apollo people search — keyword, title, location, executives toggle, company size, revenue, industry, has-email filters + quick-filter presets (inside form) |
 | `/dashboard/leads/add-prospect` | POST — enrich via Apollo+Hunter, show preview (no save yet) |
 | `/dashboard/leads/confirm-prospect` | POST — save confirmed prospect |
-| `/dashboard/spend` | Monthly spend tracker — tool costs table + ZeroBounce credits card |
+| `/dashboard/spend` | Monthly spend tracker — run rate cards, cost/email sent, cost/HubSpot lead (current month), tool costs table, ZeroBounce credits |
 | `/dashboard/spend/add` | POST — add new tool to spend tracker |
 | `/dashboard/spend/{id}/update` | POST — update tool cost/status |
 | `/dashboard/spend/{id}/delete` | POST — remove tool from tracker |
