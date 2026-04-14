@@ -62,6 +62,10 @@ def search_people(
         logger.warning("Apollo people search failed: %s", e)
         return [], 0
 
+    if "error" in data:
+        logger.warning("Apollo people search error response: %s", data["error"])
+        raise RuntimeError(data["error"])
+
     people = data.get("people") or []
     total = data.get("total_entries", len(people))
 
