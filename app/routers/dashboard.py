@@ -168,6 +168,17 @@ def zb_credits_fragment(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/fragments/zb-alert", response_class=HTMLResponse)
+def zb_alert_fragment(request: Request):
+    credits = zerobounce.get_credits()
+    if credits < 0 or credits >= 500:
+        return HTMLResponse("")
+    return templates.TemplateResponse(
+        "dashboard/fragments/zb_alert.html",
+        {"request": request, "credits": credits},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Prospects list
 # ---------------------------------------------------------------------------
