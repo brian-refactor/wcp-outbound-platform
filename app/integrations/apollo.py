@@ -35,7 +35,6 @@ def search_people(
         return [], 0
 
     payload: dict = {
-        "api_key": settings.apollo_api_key,
         "page": page,
         "per_page": PER_PAGE,
     }
@@ -51,7 +50,11 @@ def search_people(
             resp = client.post(
                 f"{APOLLO_BASE_URL}/mixed_people/search",
                 json=payload,
-                headers={"Content-Type": "application/json", "Cache-Control": "no-cache"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Cache-Control": "no-cache",
+                    "X-Api-Key": settings.apollo_api_key,
+                },
             )
             resp.raise_for_status()
             data = resp.json()
