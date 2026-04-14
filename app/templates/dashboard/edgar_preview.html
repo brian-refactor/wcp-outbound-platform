@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Preview Contact{% endblock %}
-{% block heading %}Preview Contact — EDGAR Lead{% endblock %}
+{% block heading %}Preview Contact{% endblock %}
 
 {% block content %}
 
@@ -23,7 +23,7 @@
   </div>
   {% endif %}
 
-  <form method="post" action="/dashboard/edgar/confirm-prospect">
+  <form method="post" action="{{ confirm_url }}">
     <input type="hidden" name="return_url" value="{{ return_url }}">
 
     <div class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">

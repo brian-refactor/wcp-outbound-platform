@@ -183,8 +183,9 @@ app/
       import.html          CSV upload
       sequences.html       Sequence/campaign performance charts and tables
       sync.html            HubSpot sync health page
-      edgar.html           EDGAR Form D lead finder (search, saved searches, results)
-      edgar_preview.html   Preview/confirm page before saving EDGAR contact as prospect
+      leads.html           Apollo people search lead finder (keyword/title/location filters)
+      edgar.html           EDGAR Form D lead finder (routes kept, removed from nav)
+      edgar_preview.html   Shared preview/confirm page before saving any lead as prospect
       fragments/
         activity_feed.html HTMX auto-refresh fragment
         zb_credits.html    HTMX fragment for ZeroBounce credit widget in sidebar
@@ -334,6 +335,11 @@ Open and click webhooks were not firing in earlier testing (sent to Smartlead su
 - [ ] REST API documentation — `/prospects` endpoints protected by `X-API-Key` header
 - [ ] Prospect activity endpoint `GET /prospects/{id}/activity` — full enrollment + event history as JSON
 - [ ] Upstash Redis upgrade — if request volume grows, upgrade from free tier ($10/month for 100M requests)
+
+### Future Lead Sources
+- [ ] **#2 — SEC Form ADV (RIA database)** — Every registered investment adviser files Form ADV with SEC. Free public API via IAPD (SEC Investment Adviser Public Disclosure). Shows firm name, AUM, key personnel. Endpoint: `https://efts.sec.gov/LATEST/search-index?forms=ADV`. RIAs are warm intro path to HNWI clients.
+- [ ] **#3 — SEC 13F Filings (institutional investors)** — Institutional managers with >$100M AUM file quarterly 13Fs listing holdings. These are actual investors, not fund managers. Same EDGAR infrastructure already in place (`app/integrations/edgar.py`), different form type.
+- [ ] **#4 — Form 990 / Family Foundations** — Family foundations and endowments file public 990s. ProPublica Nonprofit API (`https://projects.propublica.org/nonprofits/api/v2`) exposes foundation name, assets, trustees. Trustees of a $50M+ foundation are prime UHNWI targets.
 
 ---
 
