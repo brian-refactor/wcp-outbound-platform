@@ -5,6 +5,7 @@ All pages are read-only; no API key required (internal ops tool).
 
 import csv
 import io
+import json as _json
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -58,6 +59,7 @@ def _to_et(dt, fmt="%b %d, %H:%M"):
 
 
 templates.env.filters["to_et"] = _to_et
+templates.env.filters["fromjson"] = _json.loads
 
 
 # ---------------------------------------------------------------------------
@@ -1090,21 +1092,38 @@ def dashboard_sync(request: Request, db: Session = Depends(get_db)):
 # EDGAR Form D lead finder
 # ---------------------------------------------------------------------------
 
+from app.models.saved_search import SavedSearch
+
+
 @router.get("/edgar", response_class=HTMLResponse)
 def edgar_search(
     request: Request,
+    db: Session = Depends(get_db),
     keywords: str = Query(""),
     state: str = Query(""),
     start_date: str = Query(""),
     end_date: str = Query(""),
     offset: int = Query(0),
 ):
+    searched = any([keywords, state, start_date, end_date])
+
+    # If no params in URL, restore last search from session
+    if not searched and request.session.get("edgar_last_search"):
+        last = request.session["edgar_last_search"]
+        qs = "&".join(f"{k}={v}" for k, v in last.items() if v)
+        if qs:
+            return RedirectResponse(url=f"/dashboard/edgar?{qs}", status_code=302)
+
     rows = []
     total = 0
     error = None
-    searched = any([keywords, state, start_date, end_date])
 
     if searched:
+        # Persist search params in session
+        request.session["edgar_last_search"] = {
+            "keywords": keywords, "state": state,
+            "start_date": start_date, "end_date": end_date,
+        }
         try:
             filings, total = edgar_client.search_form_d(
                 keywords=keywords,
@@ -1118,6 +1137,8 @@ def edgar_search(
         except Exception as e:
             logger.error("EDGAR search error: %s", e)
             error = "Failed to reach EDGAR — try again in a moment."
+
+    saved_searches = db.query(SavedSearch).order_by(SavedSearch.created_at.desc()).all()
 
     return templates.TemplateResponse(
         "dashboard/edgar.html",
@@ -1135,8 +1156,43 @@ def edgar_search(
             "us_states": edgar_client.US_STATES,
             "searched": searched,
             "error": error,
+            "saved_searches": saved_searches,
         },
     )
+
+
+@router.post("/edgar/save-search", response_class=HTMLResponse)
+def edgar_save_search(
+    request: Request,
+    db: Session = Depends(get_db),
+    name: str = Form(""),
+    keywords: str = Form(""),
+    state: str = Form(""),
+    start_date: str = Form(""),
+    end_date: str = Form(""),
+):
+    if name.strip():
+        params = _json.dumps({
+            "keywords": keywords, "state": state,
+            "start_date": start_date, "end_date": end_date,
+        })
+        db.add(SavedSearch(name=name.strip(), params=params))
+        db.commit()
+    qs = "&".join(f"{k}={v}" for k, v in [
+        ("keywords", keywords), ("state", state),
+        ("start_date", start_date), ("end_date", end_date),
+    ] if v)
+    return RedirectResponse(url=f"/dashboard/edgar?{qs}", status_code=303)
+
+
+@router.post("/edgar/saved-searches/{search_id}/delete", response_class=HTMLResponse)
+def edgar_delete_saved_search(
+    search_id: str,
+    db: Session = Depends(get_db),
+):
+    db.query(SavedSearch).filter(SavedSearch.id == search_id).delete()
+    db.commit()
+    return RedirectResponse(url="/dashboard/edgar", status_code=303)
 
 
 @router.post("/edgar/add-prospect", response_class=HTMLResponse)
@@ -1148,13 +1204,14 @@ def edgar_add_prospect(
     company: str = Form(""),
     state: str = Form(""),
     biz_location: str = Form(""),
+    return_url: str = Form("/dashboard/edgar"),
 ):
     name_parts = full_name.strip().rsplit(" ", 1)
     first_name = name_parts[0] if len(name_parts) >= 1 else ""
     last_name = name_parts[1] if len(name_parts) == 2 else ""
-
     geography = biz_location or state or None
 
+    # If already a prospect, skip enrichment and go straight to their page
     existing = db.query(Prospect).filter(
         func.lower(Prospect.first_name) == first_name.lower(),
         func.lower(Prospect.last_name) == last_name.lower(),
@@ -1162,53 +1219,76 @@ def edgar_add_prospect(
     ).first() if first_name and last_name and company else None
 
     if existing:
-        return RedirectResponse(
-            url=f"/dashboard/prospects/{existing.id}?from_edgar=1",
-            status_code=303,
-        )
+        return RedirectResponse(url=f"/dashboard/prospects/{existing.id}?from_edgar=1", status_code=303)
 
-    # Enrich via Apollo, then fall back to Hunter.io if no email found
-    enriched = None
+    # Enrich via Apollo then Hunter — but do NOT save yet
+    enriched: dict = {}
+    email_source = None
+
     if first_name and last_name and company:
-        enriched = apollo_client.enrich_person(first_name, last_name, company)
+        apollo_result = apollo_client.enrich_person(first_name, last_name, company)
+        if apollo_result:
+            enriched = apollo_result
+            if enriched.get("email"):
+                email_source = "Apollo"
 
-    if enriched and not enriched.get("email") and first_name and last_name and company:
+    if not email_source and first_name and last_name and company:
         hunter_result = hunter_client.find_email(first_name, last_name, company)
         if hunter_result:
             enriched["email"] = hunter_result["email"]
-            logger.info("Hunter.io found email for %s %s (confidence %s%%)", first_name, last_name, hunter_result.get("confidence"))
-    elif not enriched and first_name and last_name and company:
-        hunter_result = hunter_client.find_email(first_name, last_name, company)
-        if hunter_result:
-            enriched = {"email": hunter_result["email"]}
+            email_source = f"Hunter.io (confidence {hunter_result.get('confidence', '?')}%)"
 
-    email = (enriched or {}).get("email") or f"unknown_{uuid.uuid4().hex[:8]}@edgar.placeholder"
-    email_status = "unknown"
+    return templates.TemplateResponse(
+        "dashboard/edgar_preview.html",
+        {
+            "request": request,
+            "active_page": "edgar",
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": enriched.get("email") or "",
+            "title": enriched.get("title") or title,
+            "company": enriched.get("company") or company,
+            "phone": enriched.get("phone") or "",
+            "linkedin_url": enriched.get("linkedin_url") or "",
+            "geography": geography,
+            "email_source": email_source,
+            "return_url": return_url,
+        },
+    )
+
+
+@router.post("/edgar/confirm-prospect", response_class=HTMLResponse)
+def edgar_confirm_prospect(
+    db: Session = Depends(get_db),
+    first_name: str = Form(""),
+    last_name: str = Form(""),
+    email: str = Form(""),
+    title: str = Form(""),
+    company: str = Form(""),
+    phone: str = Form(""),
+    linkedin_url: str = Form(""),
+    geography: str = Form(""),
+    return_url: str = Form("/dashboard/edgar"),
+):
+    if not email or not email.strip():
+        email = f"unknown_{uuid.uuid4().hex[:8]}@edgar.placeholder"
+        email_status = "unknown"
+    else:
+        email_status = "unknown"  # ZeroBounce will validate on next batch run
 
     prospect = Prospect(
         id=str(uuid.uuid4()),
-        email=email,
-        first_name=first_name or None,
-        last_name=last_name or None,
-        company=(enriched or {}).get("company") or company or None,
-        title=(enriched or {}).get("title") or title or None,
-        phone=(enriched or {}).get("phone") or None,
-        linkedin_url=(enriched or {}).get("linkedin_url") or None,
-        geography=geography,
+        email=email.strip(),
+        first_name=first_name.strip() or None,
+        last_name=last_name.strip() or None,
+        company=company.strip() or None,
+        title=title.strip() or None,
+        phone=phone.strip() or None,
+        linkedin_url=linkedin_url.strip() or None,
+        geography=geography.strip() or None,
         source="apollo",
         email_validation_status=email_status,
     )
     db.add(prospect)
     db.commit()
-
-    if enriched and enriched.get("email"):
-        # Has a real email — go straight to detail page
-        return RedirectResponse(
-            url=f"/dashboard/prospects/{prospect.id}?from_edgar=1",
-            status_code=303,
-        )
-    # No email found — drop into edit form so user can fill it in
-    return RedirectResponse(
-        url=f"/dashboard/prospects/{prospect.id}/edit?from_edgar=1",
-        status_code=303,
-    )
+    return RedirectResponse(url=f"/dashboard/prospects/{prospect.id}?from_edgar=1", status_code=303)
