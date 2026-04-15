@@ -51,6 +51,18 @@
 </div>
 {% endif %}
 
+{# ── Bulk delete result banner ── #}
+{% if request.query_params.get('bulk_deleted') %}
+<div class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+  </svg>
+  <span class="text-sm font-medium text-green-800">
+    Deleted {{ request.query_params.get('bulk_deleted') }} prospect{{ 's' if request.query_params.get('bulk_deleted') != '1' else '' }}.
+  </span>
+</div>
+{% endif %}
+
 {# ── Action buttons ── #}
 <div class="flex items-center justify-between mb-5">
   <div class="flex gap-2">
@@ -321,6 +333,10 @@
                   class="rounded-lg border border-emerald-300 text-emerald-700 bg-emerald-50 px-4 py-2 text-sm font-medium hover:bg-emerald-100 transition-colors">
             Validate Emails
           </button>
+          <button type="button" onclick="submitBulkDelete()"
+                  class="rounded-lg border border-red-300 text-red-700 bg-red-50 px-4 py-2 text-sm font-medium hover:bg-red-100 transition-colors">
+            Delete
+          </button>
           <button type="button" onclick="clearSelection()"
                   class="rounded-lg border border-gray-300 text-gray-600 px-4 py-2 text-sm hover:bg-gray-50 transition-colors">
             Cancel
@@ -464,6 +480,13 @@
   function submitBulkValidateEmails() {
     if (!confirm('Validate emails for ' + _selectedCount() + ' prospect(s) via ZeroBounce?')) return;
     document.getElementById('bulk-form').setAttribute('action', '/dashboard/prospects/bulk-validate-emails');
+    document.getElementById('bulk-form').submit();
+  }
+
+  function submitBulkDelete() {
+    const count = _selectedCount();
+    if (!confirm('Permanently delete ' + count + ' prospect(s) and all their enrollments and events? This cannot be undone.')) return;
+    document.getElementById('bulk-form').setAttribute('action', '/dashboard/prospects/bulk-delete');
     document.getElementById('bulk-form').submit();
   }
 </script>

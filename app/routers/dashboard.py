@@ -838,6 +838,38 @@ def dashboard_prospect_detail(
 
 
 # ---------------------------------------------------------------------------
+# Bulk delete prospects
+# ---------------------------------------------------------------------------
+
+@router.post("/prospects/bulk-delete", response_class=HTMLResponse)
+def bulk_delete_prospects(
+    request: Request,
+    prospect_ids: Optional[list[str]] = Form(None),
+    select_all: str = Form("0"),
+    db: Session = Depends(get_db),
+):
+    if select_all == "1":
+        prospects = db.query(Prospect).all()
+    elif prospect_ids:
+        prospects = db.query(Prospect).filter(Prospect.id.in_(prospect_ids)).all()
+    else:
+        return RedirectResponse(url="/dashboard/prospects", status_code=303)
+
+    deleted = 0
+    for prospect in prospects:
+        db.query(EmailEvent).filter(EmailEvent.prospect_id == prospect.id).delete()
+        db.query(SequenceEnrollment).filter(SequenceEnrollment.prospect_id == prospect.id).delete()
+        db.delete(prospect)
+        deleted += 1
+
+    db.commit()
+    return RedirectResponse(
+        url=f"/dashboard/prospects?bulk_deleted={deleted}",
+        status_code=303,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Delete prospect
 # ---------------------------------------------------------------------------
 
