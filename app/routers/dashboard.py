@@ -708,79 +708,265 @@ def prospect_new_submit(
 # CSV import
 # ---------------------------------------------------------------------------
 
+# DB fields exposed in the column mapper, in display order.
+# Each entry: (db_field, label, required, hint)
+CSV_IMPORT_FIELDS = [
+    ("email",                  "Email",               True,  ""),
+    ("first_name",             "First Name",          False, ""),
+    ("last_name",              "Last Name",           False, ""),
+    ("company",                "Company",             False, ""),
+    ("title",                  "Job Title",           False, ""),
+    ("phone",                  "Phone",               False, ""),
+    ("linkedin_url",           "LinkedIn URL",        False, ""),
+    ("geography",              "Geography",           False, "e.g. Southeast US"),
+    ("asset_class_preference", "Asset Class",         False, "PE, RE, or both"),
+    ("wealth_tier",            "Wealth Tier",         False, "mass_affluent / HNWI / UHNWI / institutional"),
+    ("investor_type",          "Investor Type",       False, "individual / family_office / RIA / broker_dealer / endowment / pension / other"),
+    ("net_worth_estimate",     "Net Worth Estimate",  False, ""),
+    ("source",                 "Source",              False, "Defaults to 'manual' if blank"),
+]
+
+# Common column name variants for auto-suggest
+_FIELD_ALIASES: dict[str, list[str]] = {
+    "email":                  ["email", "email_address", "e_mail", "mail"],
+    "first_name":             ["first_name", "first", "firstname", "fname", "given_name"],
+    "last_name":              ["last_name", "last", "lastname", "lname", "surname", "family_name"],
+    "company":                ["company", "company_name", "organization", "org", "employer", "firm"],
+    "title":                  ["title", "job_title", "position", "role"],
+    "phone":                  ["phone", "phone_number", "mobile", "cell", "telephone", "tel"],
+    "linkedin_url":           ["linkedin_url", "linkedin", "linkedin_profile", "li_url"],
+    "geography":              ["geography", "location", "region", "city", "state", "area"],
+    "asset_class_preference": ["asset_class_preference", "asset_class", "asset", "preference"],
+    "wealth_tier":            ["wealth_tier", "tier", "wealth"],
+    "investor_type":          ["investor_type", "investor", "type", "category"],
+    "net_worth_estimate":     ["net_worth_estimate", "net_worth", "networth"],
+    "source":                 ["source", "lead_source"],
+}
+
+
+def _normalize(s: str) -> str:
+    return s.lower().strip().replace(" ", "_").replace("-", "_")
+
+
+def _auto_suggest(csv_columns: list[str]) -> dict[str, str]:
+    """Return {db_field: matching_csv_column} for confident auto-matches."""
+    norm_map = {_normalize(col): col for col in csv_columns}
+    suggestions: dict[str, str] = {}
+    for field, aliases in _FIELD_ALIASES.items():
+        for alias in aliases:
+            if _normalize(alias) in norm_map:
+                suggestions[field] = norm_map[_normalize(alias)]
+                break
+    return suggestions
+
+
 @router.get("/prospects/import", response_class=HTMLResponse)
 def prospect_import_form(request: Request):
     return templates.TemplateResponse(
         "dashboard/prospect_import.html",
-        {"request": request, "active_page": "prospects", "result": None},
+        {"request": request, "active_page": "prospects"},
     )
 
 
 @router.post("/prospects/import", response_class=HTMLResponse)
-async def prospect_import_submit(
+async def prospect_import_upload(
     request: Request,
-    db: Session = Depends(get_db),
     file: UploadFile = File(...),
 ):
-    error = None
-    result = None
+    import base64
 
     if not file.filename or not file.filename.endswith(".csv"):
-        error = "Please upload a .csv file."
-    else:
-        max_size = 10 * 1024 * 1024
-        content = await file.read(max_size + 1)
-        if len(content) > max_size:
-            error = "File too large — 10 MB maximum."
-        else:
-            text_content = content.decode("utf-8-sig")
-            reader = csv.DictReader(io.StringIO(text_content))
-            imported, skipped, errors = 0, 0, []
+        return templates.TemplateResponse(
+            "dashboard/prospect_import.html",
+            {"request": request, "active_page": "prospects",
+             "error": "Please upload a .csv file."},
+        )
 
-            for row_num, row in enumerate(reader, start=2):
-                email = (row.get("email") or "").strip().lower()
-                if not email:
-                    errors.append(f"Row {row_num}: missing email — skipped")
-                    skipped += 1
-                    continue
+    max_size = 10 * 1024 * 1024
+    content = await file.read(max_size + 1)
+    if len(content) > max_size:
+        return templates.TemplateResponse(
+            "dashboard/prospect_import.html",
+            {"request": request, "active_page": "prospects",
+             "error": "File too large — 10 MB maximum."},
+        )
 
-                asset_class = (row.get("asset_class_preference") or "").strip() or None
-                if asset_class and asset_class not in ("PE", "RE", "both"):
-                    errors.append(f"Row {row_num}: invalid asset_class '{asset_class}' — set to null")
-                    asset_class = None
+    text_content = content.decode("utf-8-sig")
+    reader = csv.DictReader(io.StringIO(text_content))
+    csv_columns = list(reader.fieldnames or [])
 
-                values = dict(
-                    id=uuid.uuid4(),
-                    email=email,
-                    first_name=(row.get("first_name") or "").strip() or None,
-                    last_name=(row.get("last_name") or "").strip() or None,
-                    company=(row.get("company") or "").strip() or None,
-                    title=(row.get("title") or "").strip() or None,
-                    linkedin_url=(row.get("linkedin_url") or "").strip() or None,
-                    phone=(row.get("phone") or "").strip() or None,
-                    asset_class_preference=asset_class,
-                    geography=(row.get("geography") or "").strip() or None,
-                    source=(row.get("source") or "").strip() or "apollo",
-                )
-                stmt = (
-                    pg_insert(Prospect)
-                    .values(**values)
-                    .on_conflict_do_nothing(index_elements=["email"])
-                    .returning(Prospect.id)
-                )
-                row_result = db.execute(stmt)
-                if row_result.fetchone() is None:
-                    errors.append(f"Row {row_num}: {email} already exists — skipped")
-                    skipped += 1
-                else:
-                    imported += 1
+    if not csv_columns:
+        return templates.TemplateResponse(
+            "dashboard/prospect_import.html",
+            {"request": request, "active_page": "prospects",
+             "error": "CSV has no column headers."},
+        )
 
-            db.commit()
-            result = {"imported": imported, "skipped": skipped, "errors": errors}
+    # Read preview rows and count total
+    preview_rows: list[dict] = []
+    row_count = 0
+    for row in reader:
+        row_count += 1
+        if len(preview_rows) < 3:
+            preview_rows.append(dict(row))
+
+    # Build per-column sample values for hints in the mapper
+    col_samples: dict[str, list[str]] = {col: [] for col in csv_columns}
+    for row in preview_rows:
+        for col in csv_columns:
+            val = (row.get(col) or "").strip()
+            if val and val not in col_samples[col]:
+                col_samples[col].append(val)
 
     return templates.TemplateResponse(
         "dashboard/prospect_import.html",
-        {"request": request, "active_page": "prospects", "result": result, "error": error},
+        {
+            "request": request,
+            "active_page": "prospects",
+            "mapper": {
+                "csv_columns": csv_columns,
+                "preview_rows": preview_rows,
+                "col_samples": col_samples,
+                "suggestions": _auto_suggest(csv_columns),
+                "csv_b64": base64.b64encode(content).decode("ascii"),
+                "filename": file.filename,
+                "row_count": row_count,
+            },
+            "db_fields": CSV_IMPORT_FIELDS,
+        },
+    )
+
+
+@router.post("/prospects/import/confirm", response_class=HTMLResponse)
+async def prospect_import_confirm(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    import base64
+
+    form = await request.form()
+    csv_b64 = (form.get("csv_b64") or "")
+    if not csv_b64:
+        return RedirectResponse(url="/dashboard/prospects/import", status_code=303)
+
+    # Build field→column mapping from form
+    mapping: dict[str, Optional[str]] = {}
+    for field, _, _, _ in CSV_IMPORT_FIELDS:
+        val = (form.get(f"map_{field}") or "").strip()
+        mapping[field] = val if val else None
+
+    if not mapping.get("email"):
+        content_bytes = base64.b64decode(csv_b64)
+        text_content = content_bytes.decode("utf-8-sig")
+        reader_tmp = csv.DictReader(io.StringIO(text_content))
+        csv_columns = list(reader_tmp.fieldnames or [])
+        preview_rows: list[dict] = []
+        row_count = 0
+        for row in reader_tmp:
+            row_count += 1
+            if len(preview_rows) < 3:
+                preview_rows.append(dict(row))
+        col_samples: dict[str, list[str]] = {col: [] for col in csv_columns}
+        for row in preview_rows:
+            for col in csv_columns:
+                val = (row.get(col) or "").strip()
+                if val and val not in col_samples[col]:
+                    col_samples[col].append(val)
+        current_mapping = {f: mapping.get(f) or "" for f, *_ in CSV_IMPORT_FIELDS}
+        return templates.TemplateResponse(
+            "dashboard/prospect_import.html",
+            {
+                "request": request,
+                "active_page": "prospects",
+                "error": "You must map the Email column before importing.",
+                "mapper": {
+                    "csv_columns": csv_columns,
+                    "col_samples": col_samples,
+                    "suggestions": current_mapping,
+                    "csv_b64": csv_b64,
+                    "filename": "",
+                    "row_count": row_count,
+                },
+                "db_fields": CSV_IMPORT_FIELDS,
+            },
+        )
+
+    content_bytes = base64.b64decode(csv_b64)
+    text_content = content_bytes.decode("utf-8-sig")
+    reader = csv.DictReader(io.StringIO(text_content))
+
+    VALID_ASSET_CLASSES = {"PE", "RE", "both"}
+    VALID_WEALTH_TIERS = {"mass_affluent", "HNWI", "UHNWI", "institutional"}
+    VALID_INVESTOR_TYPES = {"individual", "family_office", "RIA", "broker_dealer", "endowment", "pension", "other"}
+
+    imported, skipped, errors = 0, 0, []
+
+    for row_num, row in enumerate(reader, start=2):
+        email_col = mapping["email"]
+        email = (row.get(email_col) or "").strip().lower()
+        if not email:
+            errors.append(f"Row {row_num}: missing email — skipped")
+            skipped += 1
+            continue
+
+        def _get(field: str) -> Optional[str]:
+            col = mapping.get(field)
+            if not col:
+                return None
+            return (row.get(col) or "").strip() or None
+
+        asset_class = _get("asset_class_preference")
+        if asset_class and asset_class not in VALID_ASSET_CLASSES:
+            errors.append(f"Row {row_num}: invalid asset_class '{asset_class}' — set to null")
+            asset_class = None
+
+        wealth_tier = _get("wealth_tier")
+        if wealth_tier and wealth_tier not in VALID_WEALTH_TIERS:
+            errors.append(f"Row {row_num}: invalid wealth_tier '{wealth_tier}' — set to null")
+            wealth_tier = None
+
+        investor_type = _get("investor_type")
+        if investor_type and investor_type not in VALID_INVESTOR_TYPES:
+            errors.append(f"Row {row_num}: invalid investor_type '{investor_type}' — set to null")
+            investor_type = None
+
+        values = dict(
+            id=uuid.uuid4(),
+            email=email,
+            first_name=_get("first_name"),
+            last_name=_get("last_name"),
+            company=_get("company"),
+            title=_get("title"),
+            linkedin_url=_get("linkedin_url"),
+            phone=_get("phone"),
+            asset_class_preference=asset_class,
+            geography=_get("geography"),
+            net_worth_estimate=_get("net_worth_estimate"),
+            wealth_tier=wealth_tier,
+            investor_type=investor_type,
+            source=_get("source") or "manual",
+        )
+        stmt = (
+            pg_insert(Prospect)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=["email"])
+            .returning(Prospect.id)
+        )
+        row_result = db.execute(stmt)
+        if row_result.fetchone() is None:
+            errors.append(f"Row {row_num}: {email} already exists — skipped")
+            skipped += 1
+        else:
+            imported += 1
+
+    db.commit()
+    return templates.TemplateResponse(
+        "dashboard/prospect_import.html",
+        {
+            "request": request,
+            "active_page": "prospects",
+            "result": {"imported": imported, "skipped": skipped, "errors": errors},
+        },
     )
 
 

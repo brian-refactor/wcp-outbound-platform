@@ -12,13 +12,25 @@
 
 {% block content %}
 
-<div class="max-w-2xl space-y-6">
+{# ── Error banner ── #}
+{% if error %}
+<div class="rounded-xl border border-red-200 bg-red-50 px-5 py-4 mb-5 flex items-start gap-3">
+  <svg class="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+  <div class="text-sm font-medium text-red-800">{{ error }}</div>
+</div>
+{% endif %}
 
-  {# ── Results banner ── #}
-  {% if result %}
+{# ═══════════════════════════════════════════════════════════ #}
+{# STATE 1 — Results                                          #}
+{# ═══════════════════════════════════════════════════════════ #}
+{% if result %}
+<div class="max-w-2xl space-y-5">
   <div class="rounded-xl border shadow-sm p-5
               {% if result.imported > 0 %}border-green-200 bg-green-50{% else %}border-gray-200 bg-gray-50{% endif %}">
-    <div class="flex items-center gap-4 mb-3">
+    <div class="flex items-center gap-6 mb-3">
       <div class="text-center">
         <div class="text-2xl font-bold text-green-600">{{ result.imported }}</div>
         <div class="text-xs text-gray-500">Imported</div>
@@ -29,7 +41,11 @@
         <div class="text-xs text-gray-500">Skipped</div>
       </div>
       {% if result.imported > 0 %}
-      <div class="ml-auto">
+      <div class="ml-auto flex gap-2">
+        <a href="/dashboard/prospects/import"
+           class="rounded-lg border border-gray-300 text-gray-600 px-4 py-2 text-sm font-medium hover:bg-gray-50 transition-colors">
+          Import Another
+        </a>
         <a href="/dashboard/prospects"
            class="rounded-lg bg-indigo-600 text-white px-4 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
           View Prospects →
@@ -48,29 +64,145 @@
     </div>
     {% endif %}
   </div>
-  {% endif %}
+</div>
 
-  {# ── Error banner ── #}
-  {% if error %}
-  <div class="rounded-xl border border-red-200 bg-red-50 px-5 py-4 flex items-start gap-3">
-    <svg class="w-5 h-5 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+{# ═══════════════════════════════════════════════════════════ #}
+{# STATE 2 — Field mapper                                     #}
+{# ═══════════════════════════════════════════════════════════ #}
+{% elif mapper %}
+<div class="space-y-5">
+
+  {# File info bar #}
+  <div class="flex items-center gap-3 text-sm text-gray-500">
+    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z"/>
     </svg>
-    <div class="text-sm font-medium text-red-800">{{ error }}</div>
+    <span class="font-medium text-gray-700">{{ mapper.filename }}</span>
+    <span class="text-gray-300">·</span>
+    <span>{{ mapper.row_count }} row{{ 's' if mapper.row_count != 1 else '' }}</span>
+    <span class="text-gray-300">·</span>
+    <span>{{ mapper.csv_columns | length }} column{{ 's' if mapper.csv_columns | length != 1 else '' }}</span>
+    <a href="/dashboard/prospects/import" class="ml-auto text-xs text-gray-400 hover:text-gray-600">← Upload a different file</a>
   </div>
-  {% endif %}
 
-  {# ── Upload form ── #}
+  {# Preview table #}
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="px-5 py-3 border-b border-gray-100 bg-gray-50">
+      <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">CSV Preview (first 3 rows)</span>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="text-xs w-full">
+        <thead class="bg-gray-50 border-b border-gray-100">
+          <tr>
+            {% for col in mapper.csv_columns %}
+            <th class="text-left px-4 py-2 font-medium text-gray-500 whitespace-nowrap">{{ col }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+          {% for row in mapper.preview_rows %}
+          <tr>
+            {% for col in mapper.csv_columns %}
+            <td class="px-4 py-2 text-gray-600 whitespace-nowrap max-w-[160px] truncate" title="{{ row.get(col, '') }}">
+              {{ row.get(col, '') }}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# Mapper form #}
+  <form method="post" action="/dashboard/prospects/import/confirm">
+    <input type="hidden" name="csv_b64" value="{{ mapper.csv_b64 }}"/>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Map Columns</span>
+        <span class="text-xs text-gray-400">Select which CSV column maps to each field</span>
+      </div>
+      <table class="w-full text-sm">
+        <thead class="border-b border-gray-100">
+          <tr>
+            <th class="text-left px-5 py-2.5 text-xs font-medium text-gray-500 w-44">Database Field</th>
+            <th class="text-left px-5 py-2.5 text-xs font-medium text-gray-500">CSV Column</th>
+            <th class="text-left px-5 py-2.5 text-xs font-medium text-gray-500 w-64">Sample Values</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+          {% for field, label, required, hint in db_fields %}
+          {% set suggested = mapper.suggestions.get(field, '') %}
+          <tr class="{% if required %}bg-indigo-50/30{% endif %}">
+            <td class="px-5 py-3">
+              <div class="font-medium text-gray-700 flex items-center gap-1.5">
+                {{ label }}
+                {% if required %}
+                <span class="text-red-500 text-xs font-bold">*</span>
+                {% endif %}
+              </div>
+              {% if hint %}
+              <div class="text-xs text-gray-400 mt-0.5">{{ hint }}</div>
+              {% endif %}
+            </td>
+            <td class="px-5 py-3">
+              <select name="map_{{ field }}" id="map_{{ field }}"
+                      onchange="updateSamples('{{ field }}')"
+                      class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full max-w-xs">
+                <option value=""{% if not suggested %} selected{% endif %}>(Skip)</option>
+                {% for col in mapper.csv_columns %}
+                <option value="{{ col }}"{% if col == suggested %} selected{% endif %}>{{ col }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td class="px-5 py-3">
+              <div id="samples_{{ field }}" class="text-xs text-gray-400 space-y-0.5">
+                {% if suggested and mapper.col_samples.get(suggested) %}
+                  {% for s in mapper.col_samples[suggested][:3] %}
+                  <div class="truncate max-w-[220px]" title="{{ s }}">{{ s }}</div>
+                  {% endfor %}
+                {% else %}
+                  <span class="italic">—</span>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mt-4 flex items-center gap-3">
+      <button type="submit"
+              class="rounded-lg bg-indigo-600 text-white px-6 py-2.5 text-sm font-medium hover:bg-indigo-700 transition-colors">
+        Import {{ mapper.row_count }} Row{{ 's' if mapper.row_count != 1 else '' }}
+      </button>
+      <a href="/dashboard/prospects/import"
+         class="rounded-lg border border-gray-300 text-gray-600 px-5 py-2.5 text-sm hover:bg-gray-50 transition-colors">
+        Cancel
+      </a>
+      <span class="text-xs text-gray-400">
+        Duplicate emails are skipped automatically. <span class="text-red-500">*</span> = required.
+      </span>
+    </div>
+  </form>
+</div>
+
+{# ═══════════════════════════════════════════════════════════ #}
+{# STATE 3 — Upload form (default)                            #}
+{# ═══════════════════════════════════════════════════════════ #}
+{% else %}
+<div class="max-w-2xl space-y-6">
+
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
     <h2 class="text-sm font-semibold text-gray-700 mb-1">Upload a CSV File</h2>
     <p class="text-xs text-gray-400 mb-5">
-      Duplicate emails are skipped automatically. Max file size 10 MB.
+      You'll map your CSV columns to fields on the next step. Max file size 10 MB.
     </p>
 
     <form method="post" action="/dashboard/prospects/import" enctype="multipart/form-data" class="space-y-4">
-
-      {# Drop zone #}
       <label for="file-input"
              class="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-gray-300
                     rounded-xl cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-colors">
@@ -83,52 +215,39 @@
         <input id="file-input" type="file" name="file" accept=".csv" class="hidden"
                onchange="document.getElementById('file-label').textContent = this.files[0]?.name || 'Click to choose a CSV file'"/>
       </label>
-
       <button type="submit"
               class="w-full rounded-lg bg-indigo-600 text-white px-6 py-2.5 text-sm font-medium hover:bg-indigo-700 transition-colors">
-        Import
+        Next: Map Columns →
       </button>
-
     </form>
   </div>
 
-  {# ── Expected columns ── #}
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-    <h2 class="text-sm font-semibold text-gray-700 mb-3">Expected CSV Columns</h2>
+    <h2 class="text-sm font-semibold text-gray-700 mb-3">Available Fields</h2>
     <table class="w-full text-xs">
       <thead>
         <tr class="text-gray-400 uppercase tracking-wide border-b border-gray-100">
-          <th class="text-left py-1.5 font-medium">Column</th>
+          <th class="text-left py-1.5 font-medium">Field</th>
           <th class="text-left py-1.5 font-medium">Required</th>
           <th class="text-left py-1.5 font-medium">Notes</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-50">
-        {% set columns = [
-          ("email",                   true,  "Must be unique - duplicates are skipped"),
-          ("first_name",              false, ""),
-          ("last_name",               false, ""),
-          ("company",                 false, ""),
-          ("title",                   false, "Job title"),
-          ("phone",                   false, ""),
-          ("linkedin_url",            false, "Full URL"),
-          ("asset_class_preference",  false, "PE, RE, or both"),
-          ("wealth_tier",             false, "mass_affluent, HNWI, UHNWI, or institutional"),
-          ("investor_type",           false, "individual, family_office, RIA, broker_dealer, endowment, pension, other"),
-          ("geography",               false, "e.g. Southeast US"),
-          ("source",                  false, "Defaults to 'apollo' if blank"),
-        ] %}
-        {% for col, required, note in columns %}
+        {% set field_notes = {
+          "asset_class_preference": "PE, RE, or both",
+          "wealth_tier":            "mass_affluent / HNWI / UHNWI / institutional",
+          "investor_type":          "individual / family_office / RIA / broker_dealer / endowment / pension / other",
+          "source":                 "Defaults to 'manual' if blank",
+          "email":                  "Must be unique — duplicates are skipped",
+        } %}
+        {% for field, label, required, hint in db_fields %}
         <tr>
-          <td class="py-1.5 font-mono text-gray-700">{{ col }}</td>
+          <td class="py-1.5 font-medium text-gray-700">{{ label }}</td>
           <td class="py-1.5">
-            {% if required %}
-            <span class="text-red-500 font-semibold">Yes</span>
-            {% else %}
-            <span class="text-gray-400">No</span>
-            {% endif %}
+            {% if required %}<span class="text-red-500 font-semibold">Yes</span>
+            {% else %}<span class="text-gray-400">No</span>{% endif %}
           </td>
-          <td class="py-1.5 text-gray-400">{{ note }}</td>
+          <td class="py-1.5 text-gray-400">{{ hint }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -136,5 +255,27 @@
   </div>
 
 </div>
+{% endif %}
+
+<script>
+  // col_samples is available only in mapper state; guard with a check
+  {% if mapper %}
+  const colSamples = {{ mapper.col_samples | tojson }};
+
+  function updateSamples(field) {
+    const sel = document.getElementById('map_' + field);
+    const samplesDiv = document.getElementById('samples_' + field);
+    const col = sel.value;
+    const samples = col && colSamples[col] ? colSamples[col].slice(0, 3) : [];
+    if (samples.length) {
+      samplesDiv.innerHTML = samples.map(s =>
+        '<div class="truncate max-w-[220px]" title="' + s.replace(/"/g, '&quot;') + '">' + s + '</div>'
+      ).join('');
+    } else {
+      samplesDiv.innerHTML = '<span class="italic">—</span>';
+    }
+  }
+  {% endif %}
+</script>
 
 {% endblock %}
