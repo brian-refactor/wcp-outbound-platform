@@ -353,9 +353,12 @@ def dashboard_prospects(
 def batch_generate_intro(
     request: Request,
     prospect_ids: Optional[list[str]] = Form(None),
+    select_all: str = Form("0"),
     db: Session = Depends(get_db),
 ):
-    if prospect_ids:
+    if select_all == "1":
+        prospects = db.query(Prospect).limit(100).all()
+    elif prospect_ids:
         prospects = db.query(Prospect).filter(Prospect.id.in_(prospect_ids)).all()
     else:
         prospects = db.query(Prospect).filter(Prospect.personalized_intro.is_(None)).limit(100).all()
@@ -382,14 +385,20 @@ def batch_generate_intro(
 def prospect_bulk_enroll(
     request: Request,
     db: Session = Depends(get_db),
-    prospect_ids: list[str] = Form(...),
+    prospect_ids: Optional[list[str]] = Form(None),
+    select_all: str = Form("0"),
     campaign_id: str = Form(...),
     campaign_name: str = Form(""),
 ):
     if not campaign_id:
         return RedirectResponse(url="/dashboard/prospects?bulk_error=missing_fields", status_code=303)
 
-    prospects = db.query(Prospect).filter(Prospect.id.in_(prospect_ids)).all()
+    if select_all == "1":
+        prospects = db.query(Prospect).all()
+    elif prospect_ids:
+        prospects = db.query(Prospect).filter(Prospect.id.in_(prospect_ids)).all()
+    else:
+        return RedirectResponse(url="/dashboard/prospects?bulk_error=missing_fields", status_code=303)
     enrolled_count = 0
     failed = []
 
@@ -438,6 +447,53 @@ def prospect_bulk_enroll(
     if failed:
         msg += f"&bulk_failed={len(failed)}"
     return RedirectResponse(url=f"/dashboard/prospects?{msg}", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Bulk validate emails
+# ---------------------------------------------------------------------------
+
+@router.post("/prospects/bulk-validate-emails", response_class=HTMLResponse)
+def bulk_validate_emails(
+    request: Request,
+    prospect_ids: Optional[list[str]] = Form(None),
+    select_all: str = Form("0"),
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime, timezone
+    from app.integrations.zerobounce import validate_batch
+
+    if select_all == "1":
+        prospects = db.query(Prospect).all()
+    elif prospect_ids:
+        prospects = db.query(Prospect).filter(Prospect.id.in_(prospect_ids)).all()
+    else:
+        return RedirectResponse(url="/dashboard/prospects", status_code=303)
+
+    now = datetime.now(timezone.utc)
+    validated = 0
+    BATCH_SIZE = 200
+
+    try:
+        for i in range(0, len(prospects), BATCH_SIZE):
+            batch = prospects[i:i + BATCH_SIZE]
+            emails = [p.email for p in batch]
+            results = validate_batch(emails)
+            for prospect in batch:
+                status = results.get(prospect.email.lower())
+                prospect.email_validation_status = status if status else "unknown"
+                prospect.email_validated_at = now
+                validated += 1
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Bulk email validation failed: %s", e)
+        return RedirectResponse(url="/dashboard/prospects?bulk_validated_error=1", status_code=303)
+
+    return RedirectResponse(
+        url=f"/dashboard/prospects?bulk_validated={validated}",
+        status_code=303,
+    )
 
 
 # ---------------------------------------------------------------------------

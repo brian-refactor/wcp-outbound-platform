@@ -31,6 +31,26 @@
 </div>
 {% endif %}
 
+{# ── Bulk validate result banner ── #}
+{% if request.query_params.get('bulk_validated') %}
+<div class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+  </svg>
+  <span class="text-sm font-medium text-green-800">
+    Validated emails for {{ request.query_params.get('bulk_validated') }} prospect{{ 's' if request.query_params.get('bulk_validated') != '1' else '' }} via ZeroBounce.
+  </span>
+</div>
+{% endif %}
+{% if request.query_params.get('bulk_validated_error') %}
+<div class="rounded-xl border border-red-200 bg-red-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+  </svg>
+  <span class="text-sm font-medium text-red-800">Email validation failed — check logs.</span>
+</div>
+{% endif %}
+
 {# ── Action buttons ── #}
 <div class="flex items-center justify-between mb-5">
   <div class="flex gap-2">
@@ -167,6 +187,7 @@
 
 <form id="bulk-form" method="post" action="/dashboard/prospects/bulk-enroll">
   <input type="hidden" name="campaign_name" id="bulk-campaign-name" value=""/>
+  <input type="hidden" name="select_all" id="select-all-flag" value="0"/>
 
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
     <table class="w-full text-sm">
@@ -276,29 +297,47 @@
   {# ── Bulk action bar ── #}
   <div id="bulk-bar"
        class="hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg px-6 py-4 z-50">
-    <div class="max-w-6xl mx-auto flex flex-wrap items-center gap-4">
-      <span id="bulk-count" class="text-sm font-semibold text-gray-700">0 selected</span>
-      <div class="flex items-center gap-2 flex-1 flex-wrap">
-        <select id="bulk-campaign" name="campaign_id"
-                onchange="document.getElementById('bulk-campaign-name').value = this.options[this.selectedIndex].dataset.name || ''"
-                class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="" data-name="">— Select campaign —</option>
-          {% for c in campaigns %}
-          <option value="{{ c.id }}" data-name="{{ c.name }}">{{ c.name }} ({{ c.id }})</option>
-          {% endfor %}
-        </select>
-        <button type="button" onclick="submitBulkEnroll()"
-                class="rounded-lg bg-indigo-600 text-white px-5 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
-          Enroll Selected
+    <div class="max-w-6xl mx-auto">
+      <div class="flex flex-wrap items-center gap-4">
+        <span id="bulk-count" class="text-sm font-semibold text-gray-700">0 selected</span>
+        <div class="flex items-center gap-2 flex-1 flex-wrap">
+          <select id="bulk-campaign" name="campaign_id"
+                  onchange="document.getElementById('bulk-campaign-name').value = this.options[this.selectedIndex].dataset.name || ''"
+                  class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="" data-name="">— Select campaign —</option>
+            {% for c in campaigns %}
+            <option value="{{ c.id }}" data-name="{{ c.name }}">{{ c.name }} ({{ c.id }})</option>
+            {% endfor %}
+          </select>
+          <button type="button" onclick="submitBulkEnroll()"
+                  class="rounded-lg bg-indigo-600 text-white px-5 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
+            Enroll Selected
+          </button>
+          <button type="button" onclick="submitBulkGenerateIntro()"
+                  class="rounded-lg border border-indigo-300 text-indigo-700 bg-indigo-50 px-4 py-2 text-sm font-medium hover:bg-indigo-100 transition-colors">
+            Generate Intros
+          </button>
+          <button type="button" onclick="submitBulkValidateEmails()"
+                  class="rounded-lg border border-emerald-300 text-emerald-700 bg-emerald-50 px-4 py-2 text-sm font-medium hover:bg-emerald-100 transition-colors">
+            Validate Emails
+          </button>
+          <button type="button" onclick="clearSelection()"
+                  class="rounded-lg border border-gray-300 text-gray-600 px-4 py-2 text-sm hover:bg-gray-50 transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>
+      <div id="select-all-pages-prompt" class="hidden mt-2 text-xs text-gray-500">
+        All {{ prospects | length }} on this page selected.
+        <button type="button" onclick="selectAllPages()"
+                class="text-indigo-600 font-medium hover:underline ml-1">
+          Select all {{ total }} prospects
         </button>
-        <button type="button" onclick="submitBulkGenerateIntro()"
-                class="rounded-lg border border-indigo-300 text-indigo-700 bg-indigo-50 px-4 py-2 text-sm font-medium hover:bg-indigo-100 transition-colors">
-          Generate Intros
-        </button>
+      </div>
+      <div id="select-all-pages-selected" class="hidden mt-2 text-xs text-indigo-600 font-medium">
+        All {{ total }} prospects selected.
         <button type="button" onclick="clearSelection()"
-                class="rounded-lg border border-gray-300 text-gray-600 px-4 py-2 text-sm hover:bg-gray-50 transition-colors">
-          Cancel
-        </button>
+                class="text-gray-400 font-normal hover:underline ml-2">Clear</button>
       </div>
     </div>
   </div>
@@ -341,42 +380,90 @@
 </style>
 
 <script>
+  const PAGE_TOTAL = {{ total }};
+  const PAGE_SIZE  = {{ prospects | length }};
+
   function updateBulkBar() {
     const checked = document.querySelectorAll('.prospect-cb:checked');
-    const bar = document.getElementById('bulk-bar');
-    const count = document.getElementById('bulk-count');
-    count.textContent = checked.length + ' selected';
+    const allCbs  = document.querySelectorAll('.prospect-cb');
+    const bar     = document.getElementById('bulk-bar');
+    const countEl = document.getElementById('bulk-count');
+    const selectAllFlag = document.getElementById('select-all-flag');
+
+    if (selectAllFlag.value === '1') {
+      countEl.textContent = PAGE_TOTAL + ' selected';
+    } else {
+      countEl.textContent = checked.length + ' selected';
+    }
+
     bar.classList.toggle('hidden', checked.length === 0);
     document.getElementById('select-all').indeterminate =
-      checked.length > 0 && checked.length < document.querySelectorAll('.prospect-cb').length;
+      checked.length > 0 && checked.length < allCbs.length;
     document.getElementById('select-all').checked =
-      checked.length === document.querySelectorAll('.prospect-cb').length;
+      checked.length > 0 && checked.length === allCbs.length;
+
+    const prompt   = document.getElementById('select-all-pages-prompt');
+    const selected = document.getElementById('select-all-pages-selected');
+    const allPageChecked = checked.length === allCbs.length && allCbs.length > 0;
+    const hasMorePages   = PAGE_TOTAL > PAGE_SIZE;
+
+    if (selectAllFlag.value === '1') {
+      prompt.classList.add('hidden');
+      selected.classList.remove('hidden');
+    } else if (allPageChecked && hasMorePages) {
+      prompt.classList.remove('hidden');
+      selected.classList.add('hidden');
+    } else {
+      prompt.classList.add('hidden');
+      selected.classList.add('hidden');
+    }
   }
 
   function toggleAll(el) {
     document.querySelectorAll('.prospect-cb').forEach(cb => cb.checked = el.checked);
+    if (!el.checked) {
+      document.getElementById('select-all-flag').value = '0';
+    }
+    updateBulkBar();
+  }
+
+  function selectAllPages() {
+    document.getElementById('select-all-flag').value = '1';
     updateBulkBar();
   }
 
   function clearSelection() {
     document.querySelectorAll('.prospect-cb').forEach(cb => cb.checked = false);
     document.getElementById('select-all').checked = false;
+    document.getElementById('select-all-flag').value = '0';
     document.getElementById('bulk-bar').classList.add('hidden');
+    document.getElementById('select-all-pages-prompt').classList.add('hidden');
+    document.getElementById('select-all-pages-selected').classList.add('hidden');
+  }
+
+  function _selectedCount() {
+    return document.getElementById('select-all-flag').value === '1'
+      ? PAGE_TOTAL
+      : document.querySelectorAll('.prospect-cb:checked').length;
   }
 
   function submitBulkEnroll() {
     const campaignId = document.getElementById('bulk-campaign').value;
     if (!campaignId) { alert('Please select a campaign.'); return; }
-    const count = document.querySelectorAll('.prospect-cb:checked').length;
-    if (!confirm('Enroll ' + count + ' prospect(s) in the selected campaign?')) return;
+    if (!confirm('Enroll ' + _selectedCount() + ' prospect(s) in the selected campaign?')) return;
     document.getElementById('bulk-form').setAttribute('action', '/dashboard/prospects/bulk-enroll');
     document.getElementById('bulk-form').submit();
   }
 
   function submitBulkGenerateIntro() {
-    const count = document.querySelectorAll('.prospect-cb:checked').length;
-    if (!confirm('Generate personalized intros for ' + count + ' selected prospect(s)?')) return;
+    if (!confirm('Generate personalized intros for ' + _selectedCount() + ' selected prospect(s)?')) return;
     document.getElementById('bulk-form').setAttribute('action', '/dashboard/prospects/batch-generate-intro');
+    document.getElementById('bulk-form').submit();
+  }
+
+  function submitBulkValidateEmails() {
+    if (!confirm('Validate emails for ' + _selectedCount() + ' prospect(s) via ZeroBounce?')) return;
+    document.getElementById('bulk-form').setAttribute('action', '/dashboard/prospects/bulk-validate-emails');
     document.getElementById('bulk-form').submit();
   }
 </script>
