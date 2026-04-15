@@ -391,6 +391,23 @@
 <div class="mb-20"></div>
 {% endif %}
 
+{# ── Progress modal (shown during slow bulk operations) ── #}
+<div id="progress-modal"
+     class="hidden fixed inset-0 z-[100] flex items-center justify-center"
+     style="background: rgba(0,0,0,0.45);">
+  <div class="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-5 min-w-[300px] max-w-sm mx-4">
+    <svg class="w-10 h-10 text-indigo-500 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+      <path class="opacity-80" fill="currentColor"
+            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+    </svg>
+    <div class="text-center">
+      <div id="progress-title" class="text-sm font-semibold text-gray-800 mb-1"></div>
+      <div id="progress-sub"   class="text-xs text-gray-400"></div>
+    </div>
+  </div>
+</div>
+
 <style>
   #bulk-bar { transition: transform 0.2s ease; }
 </style>
@@ -463,22 +480,43 @@
       : document.querySelectorAll('.prospect-cb:checked').length;
   }
 
+  function _showProgress(title, sub) {
+    document.getElementById('progress-title').textContent = title;
+    document.getElementById('progress-sub').textContent   = sub;
+    document.getElementById('progress-modal').classList.remove('hidden');
+  }
+
   function submitBulkEnroll() {
     const campaignId = document.getElementById('bulk-campaign').value;
     if (!campaignId) { alert('Please select a campaign.'); return; }
-    if (!confirm('Enroll ' + _selectedCount() + ' prospect(s) in the selected campaign?')) return;
+    const count = _selectedCount();
+    if (!confirm('Enroll ' + count + ' prospect(s) in the selected campaign?')) return;
+    _showProgress(
+      'Enrolling ' + count + ' prospect' + (count !== 1 ? 's' : '') + '…',
+      'Sending to Smartlead — this may take a moment.'
+    );
     document.getElementById('bulk-form').setAttribute('action', '/dashboard/prospects/bulk-enroll');
     document.getElementById('bulk-form').submit();
   }
 
   function submitBulkGenerateIntro() {
-    if (!confirm('Generate personalized intros for ' + _selectedCount() + ' selected prospect(s)?')) return;
+    const count = _selectedCount();
+    if (!confirm('Generate personalized intros for ' + count + ' selected prospect(s)?')) return;
+    _showProgress(
+      'Generating intros for ' + count + ' prospect' + (count !== 1 ? 's' : '') + '…',
+      'Calling Claude AI — this may take a moment.'
+    );
     document.getElementById('bulk-form').setAttribute('action', '/dashboard/prospects/batch-generate-intro');
     document.getElementById('bulk-form').submit();
   }
 
   function submitBulkValidateEmails() {
-    if (!confirm('Validate emails for ' + _selectedCount() + ' prospect(s) via ZeroBounce?')) return;
+    const count = _selectedCount();
+    if (!confirm('Validate emails for ' + count + ' prospect(s) via ZeroBounce?')) return;
+    _showProgress(
+      'Validating ' + count + ' email' + (count !== 1 ? 's' : '') + '…',
+      'Checking via ZeroBounce — this may take a moment.'
+    );
     document.getElementById('bulk-form').setAttribute('action', '/dashboard/prospects/bulk-validate-emails');
     document.getElementById('bulk-form').submit();
   }
