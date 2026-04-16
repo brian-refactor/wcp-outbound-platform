@@ -1487,6 +1487,14 @@ def dashboard_mailboxes(request: Request, db: Session = Depends(get_db)):
         smartlead_error = str(e)
         logger.warning("Could not fetch Smartlead email accounts: %s", e)
 
+    # Sent today from our webhook event log (accurate; Smartlead's per-account count only reflects warmup sends)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    sent_today_db = (
+        db.query(func.count(EmailEvent.id))
+        .filter(EmailEvent.event_type == "sent", EmailEvent.occurred_at >= today_start)
+        .scalar()
+    ) or 0
+
     # Local sends breakdown by sending domain
     domain_sends = sends_by_domain(db=db)
 
@@ -1501,6 +1509,7 @@ def dashboard_mailboxes(request: Request, db: Session = Depends(get_db)):
             "smartlead_error": smartlead_error,
             "domain_sends": domain_sends,
             "domain_send_map": domain_send_map,
+            "sent_today_db": sent_today_db,
             "active_page": "mailboxes",
         },
     )
@@ -2043,6 +2052,11 @@ def spend_page(
     inactive = [t for t in tools if t.status != "active"]
     total_active = float(sum(t.monthly_cost for t in active))
 
+    zb_credits = zerobounce.get_credits()
+    zb_used = db.query(func.count(Prospect.id)).filter(
+        Prospect.email_validated_at.is_not(None)
+    ).scalar() or 0
+
     # Current-month window
     now = datetime.now(timezone.utc)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -2086,6 +2100,8 @@ def spend_page(
             "hs_leads_month": hs_leads_month,
             "cost_per_email": cost_per_email,
             "cost_per_lead": cost_per_lead,
+            "zb_credits": zb_credits,
+            "zb_used": zb_used,
         },
     )
 

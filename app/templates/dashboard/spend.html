@@ -175,11 +175,11 @@
 {# ── ZeroBounce credits ── #}
 <div class="bg-white rounded-xl border border-gray-200 p-5 mb-6">
   <h3 class="text-sm font-semibold text-gray-700 mb-4">Usage-Based Credits</h3>
-  <div class="flex items-start gap-6"
-       hx-get="/dashboard/fragments/zb-credits"
-       hx-trigger="load"
-       hx-swap="innerHTML">
-    <div class="text-xs text-gray-400">Loading ZeroBounce credits…</div>
+  <div class="flex items-start gap-6">
+    {% set credits = zb_credits %}
+    {% set used = zb_used %}
+    {% set low = 0 <= credits < 500 %}
+    {% include "dashboard/fragments/zb_credits.html" %}
   </div>
 </div>
 
