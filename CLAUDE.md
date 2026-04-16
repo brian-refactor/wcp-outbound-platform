@@ -193,7 +193,7 @@ app/
       prospect_detail.html Two-column info card, personalized intro card, enrollment history
       prospect_edit.html   Edit form for all prospect fields + enrollment + Apollo/Hunter/Google/LinkedIn enrichment
       prospect_new.html    Single prospect add form
-      import.html          CSV upload
+      prospect_import.html CSV import + HubSpot list import (shared multi-state template)
       sequences.html       Sequence/campaign performance charts and tables
       sync.html            HubSpot sync health page
       leads.html           Apollo people search lead finder (keyword/title/location filters)
@@ -246,6 +246,8 @@ id, name, category (outreach/crm/enrichment/ai/validation/hosting/infrastructure
 ### HubSpot
 - Auth: Private App token (Bearer). Create under Settings → Integrations → Private Apps.
 - Required scopes: `crm.objects.contacts.read/write`, `crm.objects.deals.read/write`
+- HubSpot list import uses v1 Contacts API (`/contacts/v1/lists`, `/contacts/v1/lists/{id}/contacts/all`) — works with `crm.objects.contacts.read`. If you get a 403, add `crm.lists.read` scope to the Private App in HubSpot.
+- `get_lists()` returns all lists sorted by name with size + dynamic flag. `get_list_contacts(list_id)` paginates via `vidOffset`, skips contacts with no email.
 - click events → upsert contact + note
 - reply events → upsert contact + note + Deal named `"WCP Automated Outbound - {name}"`
 - sent/open/bounce/unsubscribe → marked synced, no HubSpot API call made
@@ -316,7 +318,9 @@ id, name, category (outreach/crm/enrichment/ai/validation/hosting/infrastructure
 | `/dashboard/` | Overview: KPIs, engagement rates, funnel chart by campaign, activity feed |
 | `/dashboard/prospects` | List with search, filters, bulk enrollment, batch intro generation |
 | `/dashboard/prospects/new` | Add single prospect (validates email via ZeroBounce immediately) |
-| `/dashboard/prospects/import` | CSV upload |
+| `/dashboard/prospects/import` | Import landing page — CSV upload or HubSpot list import |
+| `/dashboard/prospects/import/hubspot` | GET — list picker (fetches all HubSpot contact lists); POST — dedup + ZeroBounce validate + preview |
+| `/dashboard/prospects/import/hubspot/confirm` | POST — save confirmed HubSpot contacts as prospects (source=hubspot) |
 | `/dashboard/prospects/bulk-enroll` | POST — bulk enroll selected prospects (skips already-active duplicates) |
 | `/dashboard/prospects/batch-generate-intro` | POST — generate Claude intros for selected or all missing (up to 100) |
 | `/dashboard/prospects/{id}` | Detail page — contact card, investor profile, personalized intro, enrollment history |

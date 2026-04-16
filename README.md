@@ -28,7 +28,7 @@ An internal investor acquisition platform for Willow Creek Partners. Automates c
 ## What It Does
 
 1. **Find leads via Apollo.io** (`/dashboard/leads`). Search 275M+ contacts by keyword, job title, location, company size, revenue range, industry, and seniority. An executives-only toggle limits results to C-suite and senior titles. A has-email filter surfaces only contacts Apollo has verified emails for. Quick-filter presets (Family Office, CIO, Managing Partner, Wealth Manager, etc.) are inside the search form. Results show obfuscated last names — full details (email, phone, LinkedIn) are retrieved via Apollo match when you click "+ Add", with Hunter.io fallback, before the preview/confirm flow.
-2. **Import prospects** via CSV upload or manual entry form.
+2. **Import prospects** via CSV upload, manual entry form, or directly from a HubSpot list/segment — the HubSpot import deduplicates against existing prospects and validates all new emails via ZeroBounce before showing a preview/confirm page.
 3. **Validate email addresses** automatically via ZeroBounce (runs every 30 min, and immediately on prospect add). Only `valid` emails can be enrolled in campaigns.
 4. **Generate personalized email openers** per prospect using Claude (Anthropic). A 1–2 sentence opener tailored to each investor's profile (type, geography, asset class, wealth tier) is passed to Smartlead as a custom field at enrollment time.
 5. **Enroll prospects** into Smartlead email sequences — individually from the edit or detail page, or in bulk from the list view. Duplicate enrollments in the same active campaign are blocked.
@@ -219,6 +219,7 @@ When matched, the prospect is enrolled in the configured High Intent campaign, a
 - Required scopes: `crm.objects.contacts.read/write`, `crm.objects.deals.read/write`
 - **Contact upsert + note**: on click and reply events.
 - **Deal creation**: on `reply` event — `"WCP Automated Outbound - {prospect name}"` in pipeline **Outbound - Cold Leads** (ID: `890766156`), stage **New Lead to Contact** (ID: `1341410439`).
+- **List import**: `get_lists()` fetches all contact lists via v1 API; `get_list_contacts(list_id)` pages through all contacts in a list. The import flow deduplicates by email, runs ZeroBounce batch validation, and shows a preview before saving. Catch-all and unknown-status contacts are opt-in via checkboxes; invalid emails are always skipped. Imported prospects get `source=hubspot`. If a 403 error occurs fetching lists, add `crm.lists.read` scope to the HubSpot Private App.
 
 ### ZeroBounce
 
@@ -264,7 +265,9 @@ All routes live under `/dashboard/` and require login (set via `DASHBOARD_PASSWO
 | `/dashboard/` | Overview: KPI cards (row 1: prospects/enrollments/sent/opened; row 2: clicks/replies/bounces/spam/unsubscribed with rates), funnel chart (enrolled→sent→opened→clicked→replied per campaign), activity feed |
 | `/dashboard/prospects` | Prospect list with search, filters, bulk enrollment, batch intro generation |
 | `/dashboard/prospects/new` | Add single prospect |
-| `/dashboard/prospects/import` | CSV upload |
+| `/dashboard/prospects/import` | Import landing page — CSV upload or HubSpot list import |
+| `/dashboard/prospects/import/hubspot` | GET — HubSpot list picker; POST — fetch contacts, dedup, ZeroBounce validate, preview |
+| `/dashboard/prospects/import/hubspot/confirm` | POST — save confirmed HubSpot contacts (source=hubspot, email_validated_at set) |
 | `/dashboard/prospects/bulk-enroll` | POST — bulk enroll (skips already-active duplicates) |
 | `/dashboard/prospects/batch-generate-intro` | POST — generate missing Claude intros |
 | `/dashboard/prospects/{id}` | Prospect detail — contact card, intro, enrollment history |
