@@ -166,10 +166,10 @@ app/
     saved_search.py        SavedSearch model (EDGAR saved searches)
     tool_cost.py           ToolCost model (monthly spend tracker)
   routers/
-    dashboard.py           All dashboard routes + Jinja2 templates
+    dashboard.py           All dashboard routes + Jinja2 templates; imports stats functions directly as Python (not HTTP)
     webhooks.py            POST /webhooks/smartlead
     prospects.py           REST API /prospects (API-key protected)
-    stats.py               Stats endpoints
+    stats.py               Analytics aggregations (overview_stats, campaigns_funnel, sequence_stats, etc.) — called as Python functions by dashboard.py, also exposed as JSON at /stats/*
   schemas/
     prospect.py            Pydantic models for REST API I/O (ProspectCreate, ProspectOut, EnrollmentOut, etc.)
   dependencies.py          require_api_key FastAPI dependency (X-API-Key header; empty API_KEY bypasses in dev)
@@ -215,7 +215,7 @@ railway.worker.toml        Worker service Railway config
 ## Data Model Summary
 
 ### `prospects`
-Email (unique), name, company, title, phone, linkedin_url, geography, asset_class_preference (PE/RE/both), net_worth_estimate, wealth_tier (mass_affluent/HNWI/UHNWI/institutional), investor_type (individual/family_office/RIA/broker_dealer/endowment/pension/other), source (apollo/manual/referral/linkedin), accredited_status (unverified/pending/verified/failed), email_validation_status (valid/invalid/catch-all/unknown — set by ZeroBounce), email_validated_at, **personalized_intro** (AI-generated email opener, set by Claude at enrollment time or on demand).
+Email (unique), first_name, last_name, company, title, phone, linkedin_url, geography, asset_class_preference (PE/RE/both), net_worth_estimate, wealth_tier (mass_affluent/HNWI/UHNWI/institutional), investor_type (individual/family_office/RIA/broker_dealer/endowment/pension/other), source (apollo/manual/referral/linkedin), accredited_status (unverified/pending/verified/failed), email_validation_status (valid/invalid/catch-all/unknown — set by ZeroBounce), email_validated_at, **personalized_intro** (AI-generated email opener, set by Claude at enrollment time or on demand).
 
 ### `sequence_enrollments`
 prospect_id, smartlead_campaign_id, campaign_name, track (standard/high_intent), status (active/completed/opted_out/bounced), high_intent_campaign_id, timestamps. Note: `sequence_type` has been removed — campaigns are identified by name/ID only.
@@ -235,7 +235,7 @@ id, name, category (outreach/crm/enrichment/ai/validation/hosting/infrastructure
 
 ### Smartlead
 - Webhook URL: `https://web-production-eeb6.up.railway.app/webhooks/smartlead`
-- No webhook secret signing (Smartlead does not support it).
+- No webhook secret validation — `smartlead_webhook_secret` exists in `config.py` but the handler does not check it (Smartlead sends `secret_key` in the body but the validation is intentionally omitted).
 - Custom fields at enrollment must be nested under `"custom_fields"` key — NOT flat on the lead object.
 - All event type variants are mapped (e.g. `EMAIL_REPLY` and `EMAIL_REPLIED` both resolve to `"reply"`).
 - Campaigns must be created manually in Smartlead UI. Campaign IDs are integers.

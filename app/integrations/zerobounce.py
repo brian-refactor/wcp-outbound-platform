@@ -85,6 +85,10 @@ def validate_batch(emails: list[str]) -> dict[str, str]:
         response.raise_for_status()
         data = response.json()
 
+    # ZeroBounce returns HTTP 200 with {"error": "..."} on API key / credit failures
+    if "error" in data and not data.get("email_batch"):
+        raise RuntimeError(f"ZeroBounce API error: {data['error']}")
+
     results: dict[str, str] = {}
     for item in data.get("email_batch", []):
         email = (item.get("address") or "").strip().lower()
