@@ -1523,10 +1523,22 @@ def dashboard_mailboxes(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/sync", response_class=HTMLResponse)
 def dashboard_sync(request: Request, db: Session = Depends(get_db)):
+    from datetime import timedelta
     sync = sync_stats(db=db)
     zb_credits = zerobounce.get_credits()
     zb_used = db.query(func.count(Prospect.id)).filter(
         Prospect.email_validated_at.is_not(None)
+    ).scalar() or 0
+
+    # Actual HubSpot API writes (click + reply only) — distinct from "processed"
+    now_utc = datetime.now(timezone.utc)
+    hs_writes_1h = db.query(func.count(EmailEvent.id)).filter(
+        EmailEvent.event_type.in_(["click", "reply"]),
+        EmailEvent.hubspot_synced_at >= now_utc - timedelta(hours=1),
+    ).scalar() or 0
+    hs_writes_24h = db.query(func.count(EmailEvent.id)).filter(
+        EmailEvent.event_type.in_(["click", "reply"]),
+        EmailEvent.hubspot_synced_at >= now_utc - timedelta(hours=24),
     ).scalar() or 0
 
     recent_synced = db.execute(text("""
@@ -1549,6 +1561,8 @@ def dashboard_sync(request: Request, db: Session = Depends(get_db)):
             "request": request,
             "sync": sync,
             "recent_synced": recent_synced,
+            "hs_writes_1h": hs_writes_1h,
+            "hs_writes_24h": hs_writes_24h,
             "active_page": "sync",
             "zb_credits": zb_credits,
             "zb_used": zb_used,
