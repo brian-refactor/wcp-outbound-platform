@@ -1,4 +1,10 @@
-# CLAUDE.md — WCP Outbound Platform
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+---
+
+# WCP Outbound Platform
 
 This file is read by Claude Code at the start of every session. It contains standing instructions, project context, known gotchas, and outstanding work. Keep it up to date as the project evolves.
 
@@ -83,6 +89,8 @@ alembic revision --autogenerate -m "describe the change"
 
 Swagger UI: http://localhost:8000/docs
 
+**Note:** There are no automated tests in this project. Verification is done manually via the live Railway deployment or local dev server.
+
 ---
 
 ## Railway Deployment
@@ -162,6 +170,9 @@ app/
     webhooks.py            POST /webhooks/smartlead
     prospects.py           REST API /prospects (API-key protected)
     stats.py               Stats endpoints
+  schemas/
+    prospect.py            Pydantic models for REST API I/O (ProspectCreate, ProspectOut, EnrollmentOut, etc.)
+  dependencies.py          require_api_key FastAPI dependency (X-API-Key header; empty API_KEY bypasses in dev)
   integrations/
     smartlead.py           Smartlead API client (enroll, campaigns, mailboxes)
     hubspot.py             HubSpot API client (upsert contacts, notes, deals)
@@ -177,7 +188,7 @@ app/
   templates/
     base.html              Sidebar layout, nav (no ZeroBounce widget — moved to spend page)
     dashboard/
-      overview.html        KPI cards, funnel chart, activity feed
+      overview.html        KPI cards (row 1: prospects/enrollments/sent/opened; row 2: clicks/replies/bounces/spam/unsubscribed), funnel chart (enrolled→sent→opened→clicked→replied by campaign), activity feed
       prospects.html       Prospect list, filters, bulk enrollment, batch intro generation
       prospect_detail.html Two-column info card, personalized intro card, enrollment history
       prospect_edit.html   Edit form for all prospect fields + enrollment + Apollo/Hunter/Google/LinkedIn enrichment
@@ -358,8 +369,9 @@ Open and click webhooks were not firing in earlier testing (sent to Smartlead su
 ### Future Features
 - [ ] Spam event type mapping — waiting on Smartlead to confirm event name for spam reports
 - [ ] REST API documentation — `/prospects` endpoints protected by `X-API-Key` header
-- [ ] Prospect activity endpoint `GET /prospects/{id}/activity` — full enrollment + event history as JSON
+- [x] Prospect activity endpoint `GET /prospects/{id}/activity` — already implemented in `app/routers/prospects.py`
 - [ ] Upstash Redis upgrade — if request volume grows, upgrade from free tier ($10/month for 100M requests)
+- [ ] **Google Postmaster Tools integration** — pull domain reputation, spam rate, delivery errors, and authentication pass rates into the dashboard. Requires: (1) Google Cloud project with Gmail Postmaster Tools API enabled, (2) Service Account JSON key, (3) grant service account access to domains in Postmaster Tools UI, (4) add `GOOGLE_POSTMASTER_SERVICE_ACCOUNT_JSON` env var on Railway web service. Display as a new section on `/dashboard/spend` or a dedicated `/dashboard/deliverability` page.
 
 ### Future Lead Sources
 - [ ] **#2 — SEC Form ADV (RIA database)** — Every registered investment adviser files Form ADV with SEC. Free public API via IAPD (SEC Investment Adviser Public Disclosure). Shows firm name, AUM, key personnel. Endpoint: `https://efts.sec.gov/LATEST/search-index?forms=ADV`. RIAs are warm intro path to HNWI clients.

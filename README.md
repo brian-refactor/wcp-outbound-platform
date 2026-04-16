@@ -261,7 +261,7 @@ All routes live under `/dashboard/` and require login (set via `DASHBOARD_PASSWO
 
 | Route | Description |
 |-------|-------------|
-| `/dashboard/` | Overview: KPI cards, funnel chart by campaign, activity feed |
+| `/dashboard/` | Overview: KPI cards (row 1: prospects/enrollments/sent/opened; row 2: clicks/replies/bounces/spam/unsubscribed with rates), funnel chart (enrolled→sent→opened→clicked→replied per campaign), activity feed |
 | `/dashboard/prospects` | Prospect list with search, filters, bulk enrollment, batch intro generation |
 | `/dashboard/prospects/new` | Add single prospect |
 | `/dashboard/prospects/import` | CSV upload |

@@ -38,6 +38,7 @@ class OverviewStats(BaseModel):
     reply_rate: float
     bounce_rate: float
     spam_rate: float
+    unsubscribe_rate: float
 
 
 class SequenceTypeRow(BaseModel):
@@ -54,6 +55,7 @@ class SequenceTypeRow(BaseModel):
 class CampaignFunnelRow(BaseModel):
     label: str
     enrolled: int
+    sent: int
     opened: int
     clicked: int
     replied: int
@@ -205,6 +207,7 @@ def overview_stats(db: Session = Depends(get_db), campaign_id: Optional[str] = N
         reply_rate=rate(total_replied),
         bounce_rate=rate(total_bounced),
         spam_rate=rate(total_spam),
+        unsubscribe_rate=rate(total_opted_out),
     )
 
 
@@ -254,6 +257,7 @@ def campaigns_funnel(db: Session, campaign_id: Optional[str] = None) -> list[Cam
         SELECT
             COALESCE(se.campaign_name, se.smartlead_campaign_id)              AS label,
             COUNT(DISTINCT se.id)                                              AS enrolled,
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'sent'  THEN ee.prospect_id END) AS sent,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'open'  THEN ee.prospect_id END) AS opened,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'click' THEN ee.prospect_id END) AS clicked,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN ee.prospect_id END) AS replied
@@ -271,6 +275,7 @@ def campaigns_funnel(db: Session, campaign_id: Optional[str] = None) -> list[Cam
         result.append(CampaignFunnelRow(
             label=row["label"],
             enrolled=enrolled,
+            sent=row["sent"] or 0,
             opened=row["opened"] or 0,
             clicked=row["clicked"] or 0,
             replied=replied,

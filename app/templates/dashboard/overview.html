@@ -24,7 +24,7 @@
 </div>
 
 {# ── Top KPI row ── #}
-<div class="grid grid-cols-3 gap-4 mb-4">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
   <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
     <div class="text-3xl font-bold text-gray-900">{{ stats.total_prospects }}</div>
     <div class="text-xs font-medium text-gray-500 mt-1">Total Prospects</div>
@@ -37,11 +37,6 @@
     <div class="text-3xl font-bold text-indigo-600">{{ stats.total_sent }}</div>
     <div class="text-xs font-medium text-gray-500 mt-1">Emails Sent</div>
   </div>
-</div>
-
-{# ── Engagement rates row ── #}
-<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-
   <div class="rounded-xl border border-gray-200 bg-sky-50 px-5 py-4 shadow-sm">
     <div class="flex items-end gap-2">
       <div class="text-3xl font-bold text-sky-600">{{ stats.total_opened }}</div>
@@ -49,6 +44,10 @@
     </div>
     <div class="text-xs font-medium text-gray-500 mt-1">Emails Opened</div>
   </div>
+</div>
+
+{# ── Engagement rates row ── #}
+<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
 
   <div class="rounded-xl border border-gray-200 bg-purple-50 px-5 py-4 shadow-sm">
     <div class="flex items-end gap-2">
@@ -82,6 +81,14 @@
     <div class="text-xs font-medium text-gray-500 mt-1">Marked as Spam</div>
   </div>
 
+  <div class="rounded-xl border border-gray-200 bg-yellow-50 px-5 py-4 shadow-sm">
+    <div class="flex items-end gap-2">
+      <div class="text-3xl font-bold text-yellow-600">{{ stats.total_opted_out }}</div>
+      <div class="text-sm font-semibold text-yellow-400 mb-1">{{ stats.unsubscribe_rate }}%</div>
+    </div>
+    <div class="text-xs font-medium text-gray-500 mt-1">Unsubscribed</div>
+  </div>
+
 </div>
 
 {# ── Funnel Chart + Activity Feed side by side ── #}
@@ -102,8 +109,9 @@
     <canvas id="funnelChart" height="200"></canvas>
     <script>
       (function() {
-        const labels  = {{ funnel | map(attribute='label') | list | tojson }};
+        const labels   = {{ funnel | map(attribute='label')    | list | tojson }};
         const enrolled = {{ funnel | map(attribute='enrolled') | list | tojson }};
+        const sent     = {{ funnel | map(attribute='sent')     | list | tojson }};
         const opened   = {{ funnel | map(attribute='opened')   | list | tojson }};
         const clicked  = {{ funnel | map(attribute='clicked')  | list | tojson }};
         const replied  = {{ funnel | map(attribute='replied')  | list | tojson }};
@@ -114,6 +122,7 @@
             labels: labels,
             datasets: [
               { label: 'Enrolled', data: enrolled, backgroundColor: '#6366f1' },
+              { label: 'Sent',     data: sent,     backgroundColor: '#64748b' },
               { label: 'Opened',   data: opened,   backgroundColor: '#0ea5e9' },
               { label: 'Clicked',  data: clicked,  backgroundColor: '#8b5cf6' },
               { label: 'Replied',  data: replied,  backgroundColor: '#22c55e' },
