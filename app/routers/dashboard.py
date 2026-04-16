@@ -1487,11 +1487,13 @@ def dashboard_mailboxes(request: Request, db: Session = Depends(get_db)):
         smartlead_error = str(e)
         logger.warning("Could not fetch Smartlead email accounts: %s", e)
 
-    # Sent today from our webhook event log (accurate; Smartlead's per-account count only reflects warmup sends)
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    # Sent today from our webhook event log — use ET midnight so "today" matches the user's timezone
+    from zoneinfo import ZoneInfo
+    eastern = ZoneInfo("America/New_York")
+    today_start_et = datetime.now(eastern).replace(hour=0, minute=0, second=0, microsecond=0)
     sent_today_db = (
         db.query(func.count(EmailEvent.id))
-        .filter(EmailEvent.event_type == "sent", EmailEvent.occurred_at >= today_start)
+        .filter(EmailEvent.event_type == "sent", EmailEvent.occurred_at >= today_start_et)
         .scalar()
     ) or 0
 
