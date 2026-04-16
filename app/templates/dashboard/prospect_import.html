@@ -1,12 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Import CSV{% endblock %}
+{% block title %}Import{% endblock %}
 {% block heading %}
   <div class="flex items-center gap-2">
     <a href="/dashboard/prospects" class="text-gray-400 hover:text-gray-700 transition-colors">Prospects</a>
     <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
     </svg>
-    <span>Import CSV</span>
+    {% if hubspot_lists is defined or hubspot_preview is defined %}
+    <span>Import from HubSpot</span>
+    {% else %}
+    <span>Import</span>
+    {% endif %}
   </div>
 {% endblock %}
 
@@ -191,17 +195,164 @@
 </div>
 
 {# ═══════════════════════════════════════════════════════════ #}
-{# STATE 3 — Upload form (default)                            #}
+{# STATE 3 — HubSpot list picker                              #}
+{# ═══════════════════════════════════════════════════════════ #}
+{% elif hubspot_lists is defined %}
+<div class="max-w-2xl space-y-5">
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <h2 class="text-sm font-semibold text-gray-700 mb-1">Choose a HubSpot List</h2>
+    <p class="text-xs text-gray-400 mb-5">
+      Contacts will be deduplicated against existing prospects and validated via ZeroBounce before import.
+    </p>
+    {% if hubspot_lists %}
+    <form method="post" action="/dashboard/prospects/import/hubspot" class="space-y-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1.5">Select List</label>
+        <select name="list_id" id="list_select" onchange="updateListName()"
+                class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full">
+          <option value="">— choose a list —</option>
+          {% for lst in hubspot_lists %}
+          <option value="{{ lst.id }}" data-name="{{ lst.name }}">
+            {{ lst.name }}{% if lst.size %} ({{ lst.size }} contact{{ 's' if lst.size != 1 else '' }}){% endif %}{% if lst.dynamic %} · smart list{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        <input type="hidden" name="list_name" id="list_name_input" value=""/>
+      </div>
+      <div class="flex items-center gap-3">
+        <button type="submit"
+                class="rounded-lg bg-indigo-600 text-white px-6 py-2.5 text-sm font-medium hover:bg-indigo-700 transition-colors">
+          Fetch &amp; Preview →
+        </button>
+        <a href="/dashboard/prospects/import"
+           class="rounded-lg border border-gray-300 text-gray-600 px-5 py-2.5 text-sm hover:bg-gray-50 transition-colors">
+          Cancel
+        </a>
+      </div>
+    </form>
+    {% else %}
+    <p class="text-sm text-gray-500">No lists found in your HubSpot account.</p>
+    {% endif %}
+  </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════ #}
+{# STATE 4 — HubSpot preview / confirm                        #}
+{# ═══════════════════════════════════════════════════════════ #}
+{% elif hubspot_preview is defined %}
+{% set p = hubspot_preview %}
+<div class="max-w-2xl space-y-5">
+
+  {# Summary card #}
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <h2 class="text-sm font-semibold text-gray-700 mb-4">
+      Preview — {{ p.list_name or 'List ' ~ p.list_id }}
+    </h2>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+      <div class="text-center">
+        <div class="text-2xl font-bold text-gray-700">{{ p.total_fetched }}</div>
+        <div class="text-xs text-gray-400 mt-0.5">Fetched</div>
+      </div>
+      <div class="text-center">
+        <div class="text-2xl font-bold text-gray-400">{{ p.duplicate_count }}</div>
+        <div class="text-xs text-gray-400 mt-0.5">Already exist</div>
+      </div>
+      <div class="text-center">
+        <div class="text-2xl font-bold text-green-600">{{ p.valid_count }}</div>
+        <div class="text-xs text-gray-400 mt-0.5">Valid email</div>
+      </div>
+      <div class="text-center">
+        <div class="text-2xl font-bold text-gray-500">{{ p.catchall_count + p.unknown_count }}</div>
+        <div class="text-xs text-gray-400 mt-0.5">Catch-all / unknown</div>
+      </div>
+    </div>
+    {% if p.invalid_count > 0 %}
+    <div class="text-xs text-red-500 mb-4">{{ p.invalid_count }} invalid email{{ 's' if p.invalid_count != 1 else '' }} will always be skipped.</div>
+    {% endif %}
+
+    {# Sample contacts #}
+    {% if p.sample %}
+    <div class="border border-gray-100 rounded-lg overflow-hidden mb-5">
+      <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+        Sample contacts (first {{ p.sample | length }})
+      </div>
+      <table class="w-full text-xs">
+        <thead class="border-b border-gray-100">
+          <tr class="text-gray-400">
+            <th class="text-left px-4 py-2">Email</th>
+            <th class="text-left px-4 py-2">Name</th>
+            <th class="text-left px-4 py-2">Company</th>
+            <th class="text-left px-4 py-2">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50">
+          {% for c in p.sample %}
+          {% set status = c.email_validation_status %}
+          <tr>
+            <td class="px-4 py-2 text-gray-700 max-w-[160px] truncate">{{ c.email }}</td>
+            <td class="px-4 py-2 text-gray-500">{{ (c.first_name or '') ~ ' ' ~ (c.last_name or '') | trim }}</td>
+            <td class="px-4 py-2 text-gray-500 max-w-[120px] truncate">{{ c.company or '—' }}</td>
+            <td class="px-4 py-2">
+              {% if status == 'valid' %}
+              <span class="text-green-600 font-medium">valid</span>
+              {% elif status == 'invalid' %}
+              <span class="text-red-500">invalid</span>
+              {% elif status == 'catch-all' %}
+              <span class="text-yellow-600">catch-all</span>
+              {% else %}
+              <span class="text-gray-400">unknown</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {# Confirm form #}
+    <form method="post" action="/dashboard/prospects/import/hubspot/confirm" class="space-y-4">
+      <input type="hidden" name="contacts_b64" value="{{ p.contacts_b64 }}"/>
+      <div class="space-y-2">
+        {% if p.catchall_count > 0 %}
+        <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+          <input type="checkbox" name="include_catchall" value="1" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
+          Also import {{ p.catchall_count }} catch-all email{{ 's' if p.catchall_count != 1 else '' }}
+        </label>
+        {% endif %}
+        {% if p.unknown_count > 0 %}
+        <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+          <input type="checkbox" name="include_unknown" value="1" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
+          Also import {{ p.unknown_count }} unknown-status email{{ 's' if p.unknown_count != 1 else '' }}
+        </label>
+        {% endif %}
+      </div>
+      <div class="flex items-center gap-3 pt-1">
+        <button type="submit"
+                class="rounded-lg bg-indigo-600 text-white px-6 py-2.5 text-sm font-medium hover:bg-indigo-700 transition-colors">
+          Import {{ p.valid_count }} Valid Prospect{{ 's' if p.valid_count != 1 else '' }} →
+        </button>
+        <a href="/dashboard/prospects/import/hubspot"
+           class="rounded-lg border border-gray-300 text-gray-600 px-5 py-2.5 text-sm hover:bg-gray-50 transition-colors">
+          ← Back
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════ #}
+{# STATE 5 — Upload form (default)                            #}
 {# ═══════════════════════════════════════════════════════════ #}
 {% else %}
 <div class="max-w-2xl space-y-6">
 
+  {# CSV upload #}
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
     <h2 class="text-sm font-semibold text-gray-700 mb-1">Upload a CSV File</h2>
     <p class="text-xs text-gray-400 mb-5">
       You'll map your CSV columns to fields on the next step. Max file size 10 MB.
     </p>
-
     <form method="post" action="/dashboard/prospects/import" enctype="multipart/form-data" class="space-y-4">
       <label for="file-input"
              class="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-gray-300
@@ -222,8 +373,25 @@
     </form>
   </div>
 
+  {# HubSpot import #}
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-    <h2 class="text-sm font-semibold text-gray-700 mb-3">Available Fields</h2>
+    <h2 class="text-sm font-semibold text-gray-700 mb-1">Import from HubSpot</h2>
+    <p class="text-xs text-gray-400 mb-5">
+      Pull contacts from a HubSpot list or segment. Deduplicates against existing prospects and validates emails via ZeroBounce.
+    </p>
+    <a href="/dashboard/prospects/import/hubspot"
+       class="inline-flex items-center gap-2 rounded-lg bg-orange-500 text-white px-5 py-2.5 text-sm font-medium hover:bg-orange-600 transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+      </svg>
+      Choose a HubSpot List →
+    </a>
+  </div>
+
+  {# CSV field reference #}
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <h2 class="text-sm font-semibold text-gray-700 mb-3">CSV Available Fields</h2>
     <table class="w-full text-xs">
       <thead>
         <tr class="text-gray-400 uppercase tracking-wide border-b border-gray-100">
@@ -233,13 +401,6 @@
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-50">
-        {% set field_notes = {
-          "asset_class_preference": "PE, RE, or both",
-          "wealth_tier":            "mass_affluent / HNWI / UHNWI / institutional",
-          "investor_type":          "individual / family_office / RIA / broker_dealer / endowment / pension / other",
-          "source":                 "Defaults to 'manual' if blank",
-          "email":                  "Must be unique — duplicates are skipped",
-        } %}
         {% for field, label, required, hint in db_fields %}
         <tr>
           <td class="py-1.5 font-medium text-gray-700">{{ label }}</td>
@@ -258,6 +419,14 @@
 {% endif %}
 
 <script>
+  {% if hubspot_lists is defined %}
+  function updateListName() {
+    const sel = document.getElementById('list_select');
+    const opt = sel.options[sel.selectedIndex];
+    document.getElementById('list_name_input').value = opt ? (opt.dataset.name || '') : '';
+  }
+  {% endif %}
+
   // col_samples is available only in mapper state; guard with a check
   {% if mapper %}
   const colSamples = {{ mapper.col_samples | tojson }};

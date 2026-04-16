@@ -705,6 +705,181 @@ def prospect_new_submit(
 
 
 # ---------------------------------------------------------------------------
+# HubSpot list import
+# ---------------------------------------------------------------------------
+
+@router.get("/prospects/import/hubspot", response_class=HTMLResponse)
+def hubspot_import_form(request: Request):
+    from app.integrations import hubspot as hubspot_client
+    lists = []
+    error = None
+    try:
+        lists = hubspot_client.get_lists()
+    except Exception as exc:
+        error = f"Could not fetch HubSpot lists: {exc}"
+    return templates.TemplateResponse(
+        "dashboard/prospect_import.html",
+        {"request": request, "active_page": "prospects", "hubspot_lists": lists, "error": error},
+    )
+
+
+@router.post("/prospects/import/hubspot", response_class=HTMLResponse)
+async def hubspot_import_preview(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    import base64
+    import json as _json2
+    from app.integrations import hubspot as hubspot_client
+    from app.integrations.zerobounce import validate_batch
+
+    form = await request.form()
+    list_id   = (form.get("list_id") or "").strip()
+    list_name = (form.get("list_name") or "").strip()
+
+    if not list_id:
+        return RedirectResponse(url="/dashboard/prospects/import/hubspot", status_code=303)
+
+    try:
+        contacts = hubspot_client.get_list_contacts(list_id)
+    except Exception as exc:
+        return templates.TemplateResponse(
+            "dashboard/prospect_import.html",
+            {"request": request, "active_page": "prospects",
+             "error": f"Failed to fetch list contacts: {exc}", "hubspot_lists": []},
+        )
+
+    if not contacts:
+        return templates.TemplateResponse(
+            "dashboard/prospect_import.html",
+            {"request": request, "active_page": "prospects",
+             "error": "No contacts with email addresses found in this list.",
+             "hubspot_lists": []},
+        )
+
+    # Dedup against existing prospects
+    emails = [c["email"] for c in contacts]
+    existing_emails = {
+        row[0]
+        for row in db.query(Prospect.email).filter(Prospect.email.in_(emails)).all()
+    }
+    new_contacts = [c for c in contacts if c["email"] not in existing_emails]
+    duplicate_count = len(contacts) - len(new_contacts)
+
+    # ZeroBounce validation — run in batches of 200
+    validated: dict[str, str] = {}
+    if new_contacts and settings.zerobounce_api_key:
+        new_emails = [c["email"] for c in new_contacts]
+        try:
+            for i in range(0, len(new_emails), 200):
+                validated.update(validate_batch(new_emails[i : i + 200]))
+        except Exception as exc:
+            logger.warning("ZeroBounce validation failed during HubSpot import: %s", exc)
+
+    valid_count = catchall_count = unknown_count = invalid_count = 0
+    for c in new_contacts:
+        status = validated.get(c["email"], "unknown")
+        c["email_validation_status"] = status
+        if status == "valid":
+            valid_count += 1
+        elif status == "catch-all":
+            catchall_count += 1
+        elif status == "invalid":
+            invalid_count += 1
+        else:
+            unknown_count += 1
+
+    contacts_b64 = base64.b64encode(_json2.dumps(new_contacts).encode()).decode()
+
+    return templates.TemplateResponse(
+        "dashboard/prospect_import.html",
+        {
+            "request": request,
+            "active_page": "prospects",
+            "hubspot_preview": {
+                "list_id": list_id,
+                "list_name": list_name,
+                "total_fetched": len(contacts),
+                "duplicate_count": duplicate_count,
+                "new_count": len(new_contacts),
+                "valid_count": valid_count,
+                "catchall_count": catchall_count,
+                "unknown_count": unknown_count,
+                "invalid_count": invalid_count,
+                "contacts_b64": contacts_b64,
+                "sample": new_contacts[:8],
+            },
+        },
+    )
+
+
+@router.post("/prospects/import/hubspot/confirm", response_class=HTMLResponse)
+async def hubspot_import_confirm(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    import base64
+    import json as _json2
+
+    form = await request.form()
+    contacts_b64    = (form.get("contacts_b64") or "").strip()
+    include_catchall = form.get("include_catchall") == "1"
+    include_unknown  = form.get("include_unknown") == "1"
+
+    if not contacts_b64:
+        return RedirectResponse(url="/dashboard/prospects/import/hubspot", status_code=303)
+
+    contacts = _json2.loads(base64.b64decode(contacts_b64).decode())
+    now_utc = datetime.now(timezone.utc)
+
+    imported = skipped = 0
+    for c in contacts:
+        status = c.get("email_validation_status", "unknown")
+        if status == "invalid":
+            skipped += 1
+            continue
+        if status == "catch-all" and not include_catchall:
+            skipped += 1
+            continue
+        if status == "unknown" and not include_unknown:
+            skipped += 1
+            continue
+
+        values = dict(
+            id=uuid.uuid4(),
+            email=c["email"],
+            first_name=c.get("first_name"),
+            last_name=c.get("last_name"),
+            company=c.get("company"),
+            title=c.get("title"),
+            phone=c.get("phone"),
+            source="hubspot",
+            email_validation_status=status,
+            email_validated_at=now_utc,
+        )
+        stmt = (
+            pg_insert(Prospect)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=["email"])
+            .returning(Prospect.id)
+        )
+        if db.execute(stmt).fetchone() is None:
+            skipped += 1
+        else:
+            imported += 1
+
+    db.commit()
+    return templates.TemplateResponse(
+        "dashboard/prospect_import.html",
+        {
+            "request": request,
+            "active_page": "prospects",
+            "result": {"imported": imported, "skipped": skipped, "errors": []},
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # CSV import
 # ---------------------------------------------------------------------------
 
@@ -764,7 +939,7 @@ def _auto_suggest(csv_columns: list[str]) -> dict[str, str]:
 def prospect_import_form(request: Request):
     return templates.TemplateResponse(
         "dashboard/prospect_import.html",
-        {"request": request, "active_page": "prospects"},
+        {"request": request, "active_page": "prospects", "db_fields": CSV_IMPORT_FIELDS},
     )
 
 
@@ -775,32 +950,27 @@ async def prospect_import_upload(
 ):
     import base64
 
-    if not file.filename or not file.filename.endswith(".csv"):
+    def _import_error(msg: str):
         return templates.TemplateResponse(
             "dashboard/prospect_import.html",
             {"request": request, "active_page": "prospects",
-             "error": "Please upload a .csv file."},
+             "error": msg, "db_fields": CSV_IMPORT_FIELDS},
         )
+
+    if not file.filename or not file.filename.endswith(".csv"):
+        return _import_error("Please upload a .csv file.")
 
     max_size = 10 * 1024 * 1024
     content = await file.read(max_size + 1)
     if len(content) > max_size:
-        return templates.TemplateResponse(
-            "dashboard/prospect_import.html",
-            {"request": request, "active_page": "prospects",
-             "error": "File too large — 10 MB maximum."},
-        )
+        return _import_error("File too large — 10 MB maximum.")
 
     text_content = content.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text_content))
     csv_columns = list(reader.fieldnames or [])
 
     if not csv_columns:
-        return templates.TemplateResponse(
-            "dashboard/prospect_import.html",
-            {"request": request, "active_page": "prospects",
-             "error": "CSV has no column headers."},
-        )
+        return _import_error("CSV has no column headers.")
 
     # Read preview rows and count total
     preview_rows: list[dict] = []

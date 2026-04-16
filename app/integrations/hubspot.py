@@ -150,6 +150,71 @@ def create_deal(
     return deal_id
 
 
+def get_lists() -> list[dict]:
+    """
+    Return all HubSpot contact lists as [{id, name, size, dynamic}].
+    Uses v1 Contacts API — works with crm.objects.contacts.read scope.
+    """
+    results = []
+    offset = 0
+    while True:
+        with _client() as client:
+            resp = client.get("/contacts/v1/lists", params={"count": 250, "offset": offset})
+            resp.raise_for_status()
+        data = resp.json()
+        for lst in data.get("lists", []):
+            results.append({
+                "id": str(lst["listId"]),
+                "name": lst.get("name", ""),
+                "size": lst.get("metaData", {}).get("size", 0),
+                "dynamic": lst.get("dynamic", False),
+            })
+        if not data.get("has-more"):
+            break
+        offset = data.get("offset", 0)
+    return sorted(results, key=lambda x: x["name"].lower())
+
+
+def get_list_contacts(list_id: str) -> list[dict]:
+    """
+    Fetch all contacts from a HubSpot list.
+    Returns list of dicts with keys: email, first_name, last_name, company, title, phone.
+    Contacts with no email are skipped.
+    """
+    results = []
+    vid_offset = None
+    props = ["email", "firstname", "lastname", "company", "jobtitle", "phone"]
+    while True:
+        params: dict = {"count": 100}
+        for p in props:
+            params.setdefault("property", [])
+            if isinstance(params["property"], list):
+                params["property"].append(p)
+        if vid_offset is not None:
+            params["vidOffset"] = vid_offset
+        with _client() as client:
+            resp = client.get(f"/contacts/v1/lists/{list_id}/contacts/all", params=params)
+            resp.raise_for_status()
+        data = resp.json()
+        for contact in data.get("contacts", []):
+            props_data = contact.get("properties", {})
+            email = (props_data.get("email", {}).get("value") or "").strip().lower()
+            if not email:
+                continue
+            results.append({
+                "email": email,
+                "first_name": (props_data.get("firstname", {}).get("value") or "").strip() or None,
+                "last_name": (props_data.get("lastname", {}).get("value") or "").strip() or None,
+                "company": (props_data.get("company", {}).get("value") or "").strip() or None,
+                "title": (props_data.get("jobtitle", {}).get("value") or "").strip() or None,
+                "phone": (props_data.get("phone", {}).get("value") or "").strip() or None,
+            })
+        if not data.get("has-more"):
+            break
+        vid_offset = data.get("vid-offset")
+    return results
+
+
 def build_activity_summary(
     prospect_name: str,
     prospect_email: str,
