@@ -1888,7 +1888,8 @@ INDUSTRY_OPTIONS = [
 def leads_search(
     request: Request,
     keywords: str = Query(""),
-    title: str = Query(""),
+    title: str = Query(""),       # from preset buttons
+    title_text: str = Query(""),  # from the free-text input
     location: str = Query(""),
     executives: str = Query(""),
     size: list[str] = Query([]),
@@ -1898,6 +1899,9 @@ def leads_search(
     page: int = Query(1),
     searched: str = Query(""),
 ):
+    # Preset button value takes priority over the free-text input
+    effective_title = title if title else title_text
+
     results = []
     total = 0
     error = None
@@ -1908,8 +1912,8 @@ def leads_search(
     if is_searched:
         if is_executives:
             titles = EXECUTIVE_TITLES
-        elif title.strip():
-            titles = [title.strip()]
+        elif effective_title.strip():
+            titles = [effective_title.strip()]
         else:
             titles = []
         locations = [location.strip()] if location.strip() else []
@@ -1938,7 +1942,7 @@ def leads_search(
             "per_page": apollo_client.PER_PAGE,
             "page": page,
             "keywords": keywords,
-            "title": title,
+            "title": effective_title,
             "location": location,
             "executives": is_executives,
             "selected_sizes": size,

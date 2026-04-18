@@ -86,12 +86,20 @@ def search_people(
     for p in people:
         org = p.get("organization") or {}
         first_name = p.get("first_name") or ""
-        last_name_obfuscated = p.get("last_name_obfuscated") or ""
+        # Apollo returns last_name (full) on paid plans; last_name_obfuscated always present
+        last_name_full = p.get("last_name") or ""
+        last_name_obf  = p.get("last_name_obfuscated") or ""
+        # Use full last name if Apollo returned it unobfuscated, else fall back
+        last_name = last_name_full if (last_name_full and "*" not in last_name_full) else last_name_obf
+        # search_name strips any obfuscated portion so Google/LinkedIn queries are clean
+        search_last = last_name if "*" not in last_name else ""
+        search_name = f"{first_name} {search_last}".strip()
         results.append({
             "apollo_id": p.get("id") or "",
             "first_name": first_name,
-            "last_name": last_name_obfuscated,
-            "name": f"{first_name} {last_name_obfuscated}".strip(),
+            "last_name": last_name,
+            "name": f"{first_name} {last_name}".strip(),
+            "search_name": search_name,
             "title": p.get("title") or "",
             "company": org.get("name") or "",
             "has_email": p.get("has_email") or False,

@@ -354,21 +354,16 @@ A `fromjson` filter is also registered for parsing saved search params in templa
 
 ## Outstanding / To-Do
 
-### Smartlead Webhook — Previously Blocked, Status Unknown
-Open and click webhooks were not firing in earlier testing (sent to Smartlead support). Retest:
-- [ ] Open event → webhook → EmailEvent recorded
-- [ ] Click event → webhook → EmailEvent recorded → HubSpot contact + note
-- [ ] High Intent upgrade: ≥ 1 click older than 48h AND no reply → scan upgrades track
-
 ### Pending Configuration (Manual)
 - [x] **Negative reply keywords in Smartlead** — set via MCP on both campaigns. Verify in Smartlead UI.
 - [x] **Set `ANTHROPIC_API_KEY`** on Railway web service — done and confirmed working.
 - [x] **Set `APOLLO_API_KEY`** on Railway web service — done.
 - [x] **Updated HubSpot pipeline** — Outbound - Cold Leads (890766156) / New Lead to Contact (1341410439).
-- [ ] **Set `HUNTER_API_KEY`** on Railway web service — key provided, needs to be added via + New Variable.
-- [ ] **Upgrade Apollo to paid plan** — free tier blocks `/v1/mixed_people/search` (Lead Finder). Code is ready; just needs the upgraded key.
-- [ ] **Add `{{custom_fields.personalized_intro}}` to Smartlead email templates** — place as opening line of email body.
-- [ ] **Fill in tool costs** on `/dashboard/spend` — all pre-seeded tools have $0 placeholder costs.
+- [x] **Set `HUNTER_API_KEY`** on Railway web service — done.
+- [x] **Upgrade Apollo to paid plan** — done; Lead Finder people search active.
+- [x] **Add `{{custom_fields.personalized_intro}}` to Smartlead email templates** — done.
+- [x] **Fill in tool costs** on `/dashboard/spend` — done.
+- [x] **Smartlead webhooks** — open and click events confirmed firing; High Intent upgrade scan verified.
 
 ### Future Features
 - [ ] Spam event type mapping — waiting on Smartlead to confirm event name for spam reports

@@ -21,7 +21,7 @@
     </div>
     <div>
       <label class="block text-xs font-medium text-gray-500 mb-1">Job Title</label>
-      <input type="text" name="title" value="{{ title }}"
+      <input type="text" name="title_text" value="{{ title }}"
              placeholder="e.g. family office, CIO…"
              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"/>
     </div>
@@ -127,6 +127,12 @@
   </div>
 </form>
 
+<script>
+  document.querySelectorAll('form[method="get"] input[type="checkbox"]').forEach(function(cb) {
+    cb.addEventListener('change', function() { this.closest('form').submit(); });
+  });
+</script>
+
 {# ── Error ── #}
 {% if error %}
 <div class="rounded-xl border border-red-200 bg-red-50 px-5 py-3 mb-5 text-sm text-red-700">
@@ -205,8 +211,8 @@
         </td>
         <td class="px-4 py-3 text-right">
           <div class="flex items-center justify-end gap-1.5">
-            {# Google search #}
-            {% set google_q = (row.name + ' ' + (row.company or '')) | urlencode %}
+            {# Google search — search_name strips any obfuscated last name so the query is clean #}
+            {% set google_q = (row.search_name + ' ' + (row.company or '')) | urlencode %}
             <a href="https://www.google.com/search?q={{ google_q }}"
                target="_blank" rel="noopener"
                title="Google search"
@@ -225,7 +231,7 @@
                title="LinkedIn profile"
                class="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-300 transition-colors">
             {% else %}
-            {% set li_q = (row.name + ' ' + (row.company or '')) | urlencode %}
+            {% set li_q = (row.search_name + ' ' + (row.company or '')) | urlencode %}
             <a href="https://www.linkedin.com/search/results/people/?keywords={{ li_q }}"
                target="_blank" rel="noopener"
                title="LinkedIn search"

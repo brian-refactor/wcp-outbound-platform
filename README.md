@@ -412,21 +412,16 @@ Two Railway services from the same GitHub repo. Push to `master` → both servic
 
 ## Outstanding / To-Do
 
-### Smartlead Webhook Testing
-- [ ] Open event → webhook → EmailEvent recorded
-- [ ] Click event → webhook → EmailEvent recorded + HubSpot contact upserted + note
-- [ ] Reply event → enrollment completed + HubSpot deal created in Outbound - Cold Leads
-- [ ] High Intent upgrade: ≥ 1 click (48h+) + no reply → 15-min scan upgrades track
-
 ### Pending Manual Configuration
 - [x] Negative reply keywords in Smartlead — set on both campaigns
 - [x] `ANTHROPIC_API_KEY` on Railway web service
 - [x] `APOLLO_API_KEY` on Railway web service
 - [x] HubSpot pipeline updated — Outbound - Cold Leads / New Lead to Contact
-- [ ] `HUNTER_API_KEY` on Railway web service — add via + New Variable
-- [ ] Upgrade Apollo to paid plan — required for Lead Finder people search
-- [ ] Add `{{custom_fields.personalized_intro}}` to Smartlead email templates
-- [ ] Fill in actual tool costs on `/dashboard/spend`
+- [x] `HUNTER_API_KEY` on Railway web service
+- [x] Apollo upgraded to paid plan — Lead Finder people search active
+- [x] `{{custom_fields.personalized_intro}}` added to Smartlead email templates
+- [x] Tool costs filled in on `/dashboard/spend`
+- [x] Smartlead webhooks confirmed — open, click, reply events firing; High Intent upgrade verified
 
 ### Future Lead Sources
 - [ ] **SEC Form ADV** — Registered investment advisers (RIAs). Free public SEC API. Warm intro path to HNWI clients.
