@@ -1958,17 +1958,21 @@ def leads_search(
     )
 
 
-@router.post("/leads/add-prospect", response_class=HTMLResponse)
-def leads_add_prospect(
+@router.get("/leads/add-prospect", response_class=HTMLResponse)
+def leads_add_prospect_get(
     request: Request,
     db: Session = Depends(get_db),
-    apollo_id: str = Form(""),
-    first_name: str = Form(""),
-    title: str = Form(""),
-    company: str = Form(""),
-    return_url: str = Form("/dashboard/leads"),
+    apollo_id: str = Query(""),
+    first_name: str = Query(""),
+    title: str = Query(""),
+    company: str = Query(""),
+    return_url: str = Query("/dashboard/leads"),
 ):
-    # Enrich via Apollo people/match to get full name, email, phone, linkedin
+    return _leads_enrich_and_preview(request, db, apollo_id, first_name, title, company, return_url)
+
+
+def _leads_enrich_and_preview(request, db, apollo_id, first_name, title, company, return_url):
+    """Shared logic for single-contact enrich + preview (used by GET and POST handlers)."""
     enriched: dict = {}
     email_source = None
 
@@ -2020,6 +2024,19 @@ def leads_add_prospect(
     )
 
 
+@router.post("/leads/add-prospect", response_class=HTMLResponse)
+def leads_add_prospect(
+    request: Request,
+    db: Session = Depends(get_db),
+    apollo_id: str = Form(""),
+    first_name: str = Form(""),
+    title: str = Form(""),
+    company: str = Form(""),
+    return_url: str = Form("/dashboard/leads"),
+):
+    return _leads_enrich_and_preview(request, db, apollo_id, first_name, title, company, return_url)
+
+
 @router.post("/leads/confirm-prospect", response_class=HTMLResponse)
 def leads_confirm_prospect(
     db: Session = Depends(get_db),
@@ -2052,6 +2069,126 @@ def leads_confirm_prospect(
     db.add(prospect)
     db.commit()
     return RedirectResponse(url=f"/dashboard/prospects/{prospect.id}", status_code=303)
+
+
+@router.post("/leads/batch-enrich", response_class=HTMLResponse)
+def leads_batch_enrich(
+    request: Request,
+    db: Session = Depends(get_db),
+    selected: list[str] = Form([]),
+    return_url: str = Form("/dashboard/leads"),
+):
+    if not selected:
+        return RedirectResponse(url=return_url, status_code=303)
+
+    enriched_rows = []
+    for item in selected:
+        parts = item.split("|", 2)
+        if len(parts) < 3:
+            continue
+        apollo_id, first_name, company = parts[0], parts[1], parts[2]
+
+        enriched: dict = {}
+        email_source = None
+
+        if first_name and company:
+            apollo_result = apollo_client.enrich_person(first_name, "", company)
+            if apollo_result:
+                enriched = apollo_result
+                if enriched.get("email"):
+                    email_source = "Apollo"
+
+        if not email_source and first_name and company:
+            hunter_result = hunter_client.find_email(first_name, "", company)
+            if hunter_result:
+                enriched["email"] = hunter_result["email"]
+                email_source = f"Hunter ({hunter_result.get('confidence', '?')}%)"
+
+        resolved_first = enriched.get("first_name") or first_name
+        resolved_last = enriched.get("last_name") or ""
+        resolved_email = enriched.get("email") or ""
+        geography = ", ".join(filter(None, [enriched.get("city"), enriched.get("state")])) or ""
+
+        # Check if already saved as a prospect
+        existing_id = None
+        if resolved_email:
+            ex = db.query(Prospect).filter(func.lower(Prospect.email) == resolved_email.lower()).first()
+            if ex:
+                existing_id = str(ex.id)
+
+        enriched_rows.append({
+            "first_name": resolved_first,
+            "last_name": resolved_last,
+            "email": resolved_email,
+            "email_source": email_source,
+            "title": enriched.get("title") or "",
+            "company": enriched.get("company") or company,
+            "phone": enriched.get("phone") or "",
+            "linkedin_url": enriched.get("linkedin_url") or "",
+            "geography": geography,
+            "existing_id": existing_id,
+        })
+
+    return templates.TemplateResponse(
+        "dashboard/leads_batch_preview.html",
+        {
+            "request": request,
+            "active_page": "leads",
+            "rows": enriched_rows,
+            "return_url": return_url,
+        },
+    )
+
+
+@router.post("/leads/batch-confirm", response_class=HTMLResponse)
+def leads_batch_confirm(
+    db: Session = Depends(get_db),
+    include: list[str] = Form([]),
+    first_name: list[str] = Form([]),
+    last_name: list[str] = Form([]),
+    email: list[str] = Form([]),
+    title: list[str] = Form([]),
+    company: list[str] = Form([]),
+    phone: list[str] = Form([]),
+    linkedin_url: list[str] = Form([]),
+    geography: list[str] = Form([]),
+    return_url: str = Form("/dashboard/leads"),
+):
+    saved = 0
+    for idx_str in include:
+        try:
+            idx = int(idx_str)
+        except ValueError:
+            continue
+        if idx >= len(first_name):
+            continue
+
+        em = email[idx].strip() if idx < len(email) else ""
+        if not em:
+            em = f"unknown_{uuid.uuid4().hex[:8]}@apollo.placeholder"
+
+        # Skip if email already exists
+        if db.query(Prospect).filter(func.lower(Prospect.email) == em.lower()).first():
+            continue
+
+        prospect = Prospect(
+            id=str(uuid.uuid4()),
+            email=em,
+            first_name=(first_name[idx].strip() or None) if idx < len(first_name) else None,
+            last_name=(last_name[idx].strip() or None) if idx < len(last_name) else None,
+            company=(company[idx].strip() or None) if idx < len(company) else None,
+            title=(title[idx].strip() or None) if idx < len(title) else None,
+            phone=(phone[idx].strip() or None) if idx < len(phone) else None,
+            linkedin_url=(linkedin_url[idx].strip() or None) if idx < len(linkedin_url) else None,
+            geography=(geography[idx].strip() or None) if idx < len(geography) else None,
+            source="apollo",
+            email_validation_status="unknown",
+        )
+        db.add(prospect)
+        saved += 1
+
+    db.commit()
+    return RedirectResponse(url=f"/dashboard/prospects?added={saved}", status_code=303)
 
 
 # ---------------------------------------------------------------------------

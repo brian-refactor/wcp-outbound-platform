@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Enrich Preview{% endblock %}
+{% block heading %}Review Enriched Contacts{% endblock %}
+
+{% block content %}
+
+<p class="text-sm text-gray-500 mb-5">
+  Enrichment complete. Review the contacts below, uncheck any you don't want to add, then click Save.
+  Contacts already in your prospect list are pre-unchecked.
+</p>
+
+{% set email_found = rows | selectattr('email') | list | length %}
+{% set already_saved = rows | selectattr('existing_id') | list | length %}
+
+<div class="flex items-center gap-3 mb-5 flex-wrap">
+  {% if email_found %}
+  <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-800">
+    <strong>{{ email_found }}</strong> email{{ 's' if email_found != 1 else '' }} found
+  </div>
+  {% endif %}
+  {% if rows | length - email_found > 0 %}
+  <div class="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-2 text-sm text-yellow-800">
+    <strong>{{ rows | length - email_found }}</strong> with no email found — will save with placeholder
+  </div>
+  {% endif %}
+  {% if already_saved %}
+  <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-600">
+    <strong>{{ already_saved }}</strong> already in your prospect list
+  </div>
+  {% endif %}
+</div>
+
+<form method="post" action="/dashboard/leads/batch-confirm">
+  <input type="hidden" name="return_url" value="{{ return_url }}">
+
+  {# Hidden data fields for all rows — indexed positionally #}
+  {% for row in rows %}
+  <input type="hidden" name="first_name"   value="{{ row.first_name }}">
+  <input type="hidden" name="last_name"    value="{{ row.last_name }}">
+  <input type="hidden" name="email"        value="{{ row.email }}">
+  <input type="hidden" name="title"        value="{{ row.title }}">
+  <input type="hidden" name="company"      value="{{ row.company }}">
+  <input type="hidden" name="phone"        value="{{ row.phone }}">
+  <input type="hidden" name="linkedin_url" value="{{ row.linkedin_url }}">
+  <input type="hidden" name="geography"    value="{{ row.geography }}">
+  {% endfor %}
+
+  <div class="bg-white rounded-xl border border-gray-200 overflow-hidden mb-5">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-gray-50 border-b border-gray-100">
+          <th class="w-8 px-4 py-3">
+            <input type="checkbox" id="preview-select-all"
+                   class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"/>
+          </th>
+          <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
+          <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</th>
+          <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Title</th>
+          <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Company</th>
+          <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Location</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for row in rows %}
+        {% set is_existing = row.existing_id %}
+        <tr class="{% if is_existing %}bg-gray-50 opacity-60{% else %}hover:bg-gray-50{% endif %}">
+          <td class="px-4 py-3">
+            <input type="checkbox" name="include" value="{{ loop.index0 }}"
+                   class="preview-cb rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                   {% if not is_existing %}checked{% endif %}/>
+          </td>
+          <td class="px-4 py-3">
+            <div class="font-medium text-gray-900">{{ row.first_name }} {{ row.last_name }}</div>
+            {% if is_existing %}
+            <a href="/dashboard/prospects/{{ row.existing_id }}"
+               class="text-xs text-indigo-600 hover:underline">Already a prospect →</a>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3">
+            {% if row.email %}
+            <div class="text-gray-700">{{ row.email }}</div>
+            {% if row.email_source %}
+            <div class="text-xs text-green-600">via {{ row.email_source }}</div>
+            {% endif %}
+            {% else %}
+            <span class="text-xs text-yellow-600">not found — placeholder will be used</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-gray-600">{{ row.title or '—' }}</td>
+          <td class="px-4 py-3 text-gray-700">{{ row.company or '—' }}</td>
+          <td class="px-4 py-3 text-gray-500 text-xs">{{ row.geography or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="flex items-center justify-between">
+    <a href="{{ return_url }}"
+       class="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+      ← Back to results
+    </a>
+    <button type="submit"
+            class="rounded-lg bg-indigo-600 text-white px-6 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
+      Save Selected Prospects
+    </button>
+  </div>
+
+</form>
+
+<script>
+  const previewCbs  = document.querySelectorAll('.preview-cb');
+  const selectAllCb = document.getElementById('preview-select-all');
+
+  function syncSelectAll() {
+    const checked = document.querySelectorAll('.preview-cb:checked').length;
+    selectAllCb.checked = checked === previewCbs.length;
+    selectAllCb.indeterminate = checked > 0 && checked < previewCbs.length;
+  }
+
+  previewCbs.forEach(cb => cb.addEventListener('change', syncSelectAll));
+  syncSelectAll();
+
+  selectAllCb.addEventListener('change', function() {
+    previewCbs.forEach(cb => {
+      // Don't check rows that are already existing prospects
+      if (!cb.closest('tr').classList.contains('opacity-60')) {
+        cb.checked = this.checked;
+      }
+    });
+    syncSelectAll();
+  });
+</script>
+
+{% endblock %}

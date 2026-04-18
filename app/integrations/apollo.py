@@ -94,6 +94,9 @@ def search_people(
         # search_name strips any obfuscated portion so Google/LinkedIn queries are clean
         search_last = last_name if "*" not in last_name else ""
         search_name = f"{first_name} {search_last}".strip()
+        location_parts = [p.get("city") or "", p.get("state") or ""]
+        location = ", ".join(x for x in location_parts if x)
+        employees = org.get("estimated_num_employees")
         results.append({
             "apollo_id": p.get("id") or "",
             "first_name": first_name,
@@ -103,9 +106,14 @@ def search_people(
             "title": p.get("title") or "",
             "company": org.get("name") or "",
             "has_email": p.get("has_email") or False,
-            "city": "",
-            "state": "",
-            "linkedin_url": "",
+            "city": p.get("city") or "",
+            "state": p.get("state") or "",
+            "location": location,
+            "linkedin_url": p.get("linkedin_url") or "",
+            "seniority": p.get("seniority") or "",
+            "org_industry": org.get("industry") or "",
+            "org_employees": f"{employees:,}" if employees else "",
+            "org_domain": org.get("primary_domain") or "",
             "email": None,
             "phone": None,
         })

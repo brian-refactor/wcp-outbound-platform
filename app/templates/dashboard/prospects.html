@@ -19,6 +19,18 @@
 </div>
 {% endif %}
 
+{# ── Batch add from Lead Finder banner ── #}
+{% if request.query_params.get('added') %}
+<div class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+  </svg>
+  <span class="text-sm font-medium text-green-800">
+    Added {{ request.query_params.get('added') }} prospect{{ 's' if request.query_params.get('added') != '1' else '' }} from Lead Finder.
+  </span>
+</div>
+{% endif %}
+
 {# ── Batch intro result banner ── #}
 {% if request.query_params.get('batch_intro') %}
 <div class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
