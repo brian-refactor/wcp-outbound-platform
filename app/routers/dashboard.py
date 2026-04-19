@@ -2050,12 +2050,14 @@ def leads_confirm_prospect(
     geography: str = Form(""),
     return_url: str = Form("/dashboard/leads"),
 ):
+    from datetime import datetime, timezone
     if not email or not email.strip():
         email = f"unknown_{uuid.uuid4().hex[:8]}@apollo.placeholder"
 
+    email = email.strip()
     prospect = Prospect(
         id=str(uuid.uuid4()),
-        email=email.strip(),
+        email=email,
         first_name=first_name.strip() or None,
         last_name=last_name.strip() or None,
         company=company.strip() or None,
@@ -2068,6 +2070,19 @@ def leads_confirm_prospect(
     )
     db.add(prospect)
     db.commit()
+
+    # Validate immediately if it's a real email (not a placeholder)
+    if "@apollo.placeholder" not in email:
+        try:
+            results = zerobounce.validate_batch([email])
+            status = results.get(email)
+            if status:
+                prospect.email_validation_status = status
+                prospect.email_validated_at = datetime.now(timezone.utc)
+                db.commit()
+        except Exception as e:
+            logger.warning("ZeroBounce validation failed for %s: %s", email, e)
+
     return RedirectResponse(url=f"/dashboard/prospects/{prospect.id}", status_code=303)
 
 
@@ -2154,7 +2169,10 @@ def leads_batch_confirm(
     geography: list[str] = Form([]),
     return_url: str = Form("/dashboard/leads"),
 ):
-    saved = 0
+    from datetime import datetime, timezone
+
+    # Build the list of prospects to save first
+    to_save = []
     for idx_str in include:
         try:
             idx = int(idx_str)
@@ -2167,22 +2185,47 @@ def leads_batch_confirm(
         if not em:
             em = f"unknown_{uuid.uuid4().hex[:8]}@apollo.placeholder"
 
-        # Skip if email already exists
         if db.query(Prospect).filter(func.lower(Prospect.email) == em.lower()).first():
             continue
 
+        to_save.append({
+            "email": em,
+            "first_name": (first_name[idx].strip() or None) if idx < len(first_name) else None,
+            "last_name": (last_name[idx].strip() or None) if idx < len(last_name) else None,
+            "company": (company[idx].strip() or None) if idx < len(company) else None,
+            "title": (title[idx].strip() or None) if idx < len(title) else None,
+            "phone": (phone[idx].strip() or None) if idx < len(phone) else None,
+            "linkedin_url": (linkedin_url[idx].strip() or None) if idx < len(linkedin_url) else None,
+            "geography": (geography[idx].strip() or None) if idx < len(geography) else None,
+        })
+
+    # Batch validate all real emails in one ZeroBounce call
+    real_emails = [r["email"] for r in to_save if "@apollo.placeholder" not in r["email"]]
+    zb_results: dict = {}
+    if real_emails:
+        try:
+            zb_results = zerobounce.validate_batch(real_emails)
+        except Exception as e:
+            logger.warning("ZeroBounce batch validation failed: %s", e)
+
+    now = datetime.now(timezone.utc)
+    saved = 0
+    for row in to_save:
+        em = row["email"]
+        zb_status = zb_results.get(em)
         prospect = Prospect(
             id=str(uuid.uuid4()),
             email=em,
-            first_name=(first_name[idx].strip() or None) if idx < len(first_name) else None,
-            last_name=(last_name[idx].strip() or None) if idx < len(last_name) else None,
-            company=(company[idx].strip() or None) if idx < len(company) else None,
-            title=(title[idx].strip() or None) if idx < len(title) else None,
-            phone=(phone[idx].strip() or None) if idx < len(phone) else None,
-            linkedin_url=(linkedin_url[idx].strip() or None) if idx < len(linkedin_url) else None,
-            geography=(geography[idx].strip() or None) if idx < len(geography) else None,
+            first_name=row["first_name"],
+            last_name=row["last_name"],
+            company=row["company"],
+            title=row["title"],
+            phone=row["phone"],
+            linkedin_url=row["linkedin_url"],
+            geography=row["geography"],
             source="apollo",
-            email_validation_status="unknown",
+            email_validation_status=zb_status or "unknown",
+            email_validated_at=now if zb_status else None,
         )
         db.add(prospect)
         saved += 1
