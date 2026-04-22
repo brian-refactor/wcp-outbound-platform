@@ -70,6 +70,7 @@ class DomainSendRow(BaseModel):
 
 class SequenceRow(BaseModel):
     campaign_name: str
+    smartlead_campaign_id: str
     track: str
     enrolled: int
     opened: int
@@ -289,16 +290,17 @@ def sequence_stats(db: Session = Depends(get_db)):
     rows = db.execute(text("""
         SELECT
             COALESCE(se.campaign_name, se.smartlead_campaign_id) AS campaign_name,
+            se.smartlead_campaign_id,
             se.track,
             COUNT(DISTINCT se.id)                                                          AS enrolled,
-            COUNT(CASE WHEN ee.event_type = 'open'  THEN ee.id END)                        AS opened,
+            COUNT(CASE WHEN ee.event_type = 'open'  THEN ee.id END)                       AS opened,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'click' THEN ee.prospect_id END)     AS clicked,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN ee.prospect_id END)     AS replied,
             COUNT(DISTINCT CASE WHEN se.status = 'bounced'   THEN se.id END)              AS bounced,
             COUNT(DISTINCT CASE WHEN se.status = 'opted_out' THEN se.id END)              AS opted_out
         FROM sequence_enrollments se
         LEFT JOIN email_events ee ON ee.enrollment_id = se.id
-        GROUP BY COALESCE(se.campaign_name, se.smartlead_campaign_id), se.track
+        GROUP BY COALESCE(se.campaign_name, se.smartlead_campaign_id), se.smartlead_campaign_id, se.track
         ORDER BY enrolled DESC, se.track
     """)).mappings().all()
 
@@ -308,6 +310,7 @@ def sequence_stats(db: Session = Depends(get_db)):
         replied = row["replied"] or 0
         result.append(SequenceRow(
             campaign_name=row["campaign_name"],
+            smartlead_campaign_id=row["smartlead_campaign_id"],
             track=row["track"],
             enrolled=enrolled,
             opened=row["opened"] or 0,
@@ -353,9 +356,11 @@ class EmailStepRow(BaseModel):
     reply_rate: float
 
 
-def sequence_email_stats(db: Session) -> list[EmailStepRow]:
+def sequence_email_stats(db: Session, campaign_id: Optional[str] = None) -> list[EmailStepRow]:
     """Per-email breakdown within each campaign, ordered by sequence step (sent desc)."""
-    rows = db.execute(text("""
+    where = "AND se.smartlead_campaign_id = :campaign_id" if campaign_id else ""
+    params = {"campaign_id": campaign_id} if campaign_id else {}
+    rows = db.execute(text(f"""
         SELECT
             COALESCE(se.campaign_name, se.smartlead_campaign_id) AS campaign_name,
             ee.email_subject,
@@ -365,10 +370,10 @@ def sequence_email_stats(db: Session) -> list[EmailStepRow]:
             COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN ee.prospect_id END) AS replied
         FROM email_events ee
         JOIN sequence_enrollments se ON se.id = ee.enrollment_id
-        WHERE ee.email_subject IS NOT NULL
+        WHERE ee.email_subject IS NOT NULL {where}
         GROUP BY COALESCE(se.campaign_name, se.smartlead_campaign_id), ee.email_subject
         ORDER BY campaign_name, sent DESC
-    """)).mappings().all()
+    """), params).mappings().all()
 
     result = []
     for row in rows:

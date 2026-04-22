@@ -96,7 +96,9 @@
     <tbody class="divide-y divide-gray-100">
       {% for row in sequences %}
       <tr class="hover:bg-gray-50">
-        <td class="px-4 py-3 font-semibold text-gray-800">{{ row.campaign_name }}</td>
+        <td class="px-4 py-3 font-semibold">
+          <a href="/dashboard/sequences/{{ row.smartlead_campaign_id }}" class="text-indigo-600 hover:underline">{{ row.campaign_name }}</a>
+        </td>
         <td class="px-4 py-3">
           <span class="px-2 py-0.5 rounded-full text-xs font-medium
                        {% if row.track == 'high_intent' %}bg-yellow-100 text-yellow-700
@@ -130,49 +132,5 @@
   </table>
 </div>
 
-{# ── Per-email breakdown ── #}
-{% if email_steps %}
-{% set ns = namespace(current_campaign='') %}
-{% for row in email_steps %}
-{% if row.campaign_name != ns.current_campaign %}
-{% if not loop.first %}</tbody></table></div>{% endif %}
-{% set ns.current_campaign = row.campaign_name %}
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-4">
-  <div class="px-6 py-4 border-b border-gray-100">
-    <h2 class="text-sm font-semibold text-gray-700">{{ row.campaign_name }} — Email Step Performance</h2>
-  </div>
-  <table class="w-full text-sm">
-    <thead class="bg-gray-50 border-b border-gray-200">
-      <tr>
-        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Subject</th>
-        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Sent</th>
-        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Opened</th>
-        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Open Rate</th>
-        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Clicked</th>
-        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Replied</th>
-        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Reply Rate</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-gray-100">
-{% endif %}
-<tr class="hover:bg-gray-50">
-  <td class="px-4 py-3 text-gray-800">{{ row.email_subject }}</td>
-  <td class="px-4 py-3 text-right text-gray-600">{{ row.sent }}</td>
-  <td class="px-4 py-3 text-right text-blue-600">{{ row.opened }}</td>
-  <td class="px-4 py-3 text-right text-blue-500 text-xs">{{ row.open_rate }}%</td>
-  <td class="px-4 py-3 text-right text-purple-600">{{ row.clicked }}</td>
-  <td class="px-4 py-3 text-right text-green-600 font-semibold">{{ row.replied }}</td>
-  <td class="px-4 py-3 text-right">
-    <span class="font-semibold
-                 {% if row.reply_rate >= 10 %}text-green-600
-                 {% elif row.reply_rate >= 5 %}text-yellow-600
-                 {% else %}text-gray-500{% endif %}">
-      {{ row.reply_rate }}%
-    </span>
-  </td>
-</tr>
-{% endfor %}
-</tbody></table></div>
-{% endif %}
 
 {% endblock %}

@@ -1445,7 +1445,6 @@ def prospect_edit_submit(
 def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
     seq = sequence_stats(db=db)
     seq_types = sequences_by_type(db=db)
-    email_steps = sequence_email_stats(db=db)
 
     return templates.TemplateResponse(
         "dashboard/sequences.html",
@@ -1453,7 +1452,25 @@ def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
             "request": request,
             "sequences": seq,
             "seq_types": seq_types,
+            "active_page": "sequences",
+        },
+    )
+
+
+@router.get("/sequences/{campaign_id}", response_class=HTMLResponse)
+def dashboard_sequence_detail(campaign_id: str, request: Request, db: Session = Depends(get_db)):
+    email_steps = sequence_email_stats(db=db, campaign_id=campaign_id)
+    stats = overview_stats(db=db, campaign_id=campaign_id)
+    campaign_name = email_steps[0].campaign_name if email_steps else campaign_id
+
+    return templates.TemplateResponse(
+        "dashboard/sequence_detail.html",
+        {
+            "request": request,
+            "campaign_id": campaign_id,
+            "campaign_name": campaign_name,
             "email_steps": email_steps,
+            "stats": stats,
             "active_page": "sequences",
         },
     )
