@@ -1459,9 +1459,14 @@ def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/sequences/{campaign_id}", response_class=HTMLResponse)
 def dashboard_sequence_detail(campaign_id: str, request: Request, db: Session = Depends(get_db)):
+    from app.models.campaign_config import CampaignConfig
+
     email_steps = sequence_email_stats(db=db, campaign_id=campaign_id)
     stats = overview_stats(db=db, campaign_id=campaign_id)
     campaign_name = email_steps[0].campaign_name if email_steps else campaign_id
+    hs_cfg = db.query(CampaignConfig).filter(
+        CampaignConfig.smartlead_campaign_id == campaign_id
+    ).first()
 
     return templates.TemplateResponse(
         "dashboard/sequence_detail.html",
@@ -1471,9 +1476,78 @@ def dashboard_sequence_detail(campaign_id: str, request: Request, db: Session = 
             "campaign_name": campaign_name,
             "email_steps": email_steps,
             "stats": stats,
+            "hs_cfg": hs_cfg,
             "active_page": "sequences",
         },
     )
+
+
+@router.get("/sequences/{campaign_id}/config", response_class=HTMLResponse)
+def campaign_config_get(campaign_id: str, request: Request, db: Session = Depends(get_db)):
+    from app.integrations.hubspot import get_deal_pipelines
+    from app.models.campaign_config import CampaignConfig, TRIGGER_CHOICES
+
+    cfg = db.query(CampaignConfig).filter(
+        CampaignConfig.smartlead_campaign_id == campaign_id
+    ).first()
+
+    email_steps = sequence_email_stats(db=db, campaign_id=campaign_id)
+    campaign_name = email_steps[0].campaign_name if email_steps else campaign_id
+
+    pipelines = []
+    pipelines_error = None
+    try:
+        pipelines = get_deal_pipelines()
+    except Exception as e:
+        pipelines_error = str(e)
+        logger.warning("Could not fetch HubSpot pipelines: %s", e)
+
+    return templates.TemplateResponse(
+        "dashboard/campaign_config.html",
+        {
+            "request": request,
+            "campaign_id": campaign_id,
+            "campaign_name": campaign_name,
+            "cfg": cfg,
+            "pipelines": pipelines,
+            "pipelines_error": pipelines_error,
+            "trigger_choices": TRIGGER_CHOICES,
+            "active_page": "sequences",
+        },
+    )
+
+
+@router.post("/sequences/{campaign_id}/config")
+def campaign_config_post(
+    campaign_id: str,
+    db: Session = Depends(get_db),
+    hubspot_trigger_event: str = Form("reply"),
+    hubspot_pipeline_id: str = Form(""),
+    hubspot_stage_id: str = Form(""),
+):
+    from app.models.campaign_config import CampaignConfig, TRIGGER_CHOICES
+
+    if hubspot_trigger_event not in TRIGGER_CHOICES:
+        hubspot_trigger_event = "reply"
+
+    cfg = db.query(CampaignConfig).filter(
+        CampaignConfig.smartlead_campaign_id == campaign_id
+    ).first()
+
+    if cfg is None:
+        cfg = CampaignConfig(smartlead_campaign_id=campaign_id)
+        db.add(cfg)
+
+    cfg.hubspot_trigger_event = hubspot_trigger_event
+    cfg.hubspot_pipeline_id = hubspot_pipeline_id.strip() or None
+    cfg.hubspot_stage_id = hubspot_stage_id.strip() or None
+
+    email_steps = sequence_email_stats(db=db, campaign_id=campaign_id)
+    if email_steps:
+        cfg.campaign_name = email_steps[0].campaign_name
+
+    db.commit()
+    return RedirectResponse(url=f"/dashboard/sequences/{campaign_id}", status_code=303)
 
 
 # ---------------------------------------------------------------------------
