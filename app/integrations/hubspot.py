@@ -113,19 +113,22 @@ def create_deal(
     hubspot_contact_id: str,
     deal_name: str,
     description: str,
+    pipeline_id: str | None = None,
+    stage_id: str | None = None,
 ) -> str:
     """
     Creates a Deal in the configured pipeline/stage and associates it to the
     contact inline (no crm.associations.write scope required).
 
+    pipeline_id / stage_id: if None, falls back to global settings values.
     Returns the HubSpot deal id.
     Raises: httpx.HTTPStatusError on API error
     """
     payload = {
         "properties": {
             "dealname": deal_name,
-            "pipeline": settings.hubspot_deal_pipeline_id,
-            "dealstage": settings.hubspot_deal_stage_id,
+            "pipeline": pipeline_id or settings.hubspot_deal_pipeline_id,
+            "dealstage": stage_id or settings.hubspot_deal_stage_id,
             "description": description,
         },
         "associations": [
@@ -213,6 +216,29 @@ def get_list_contacts(list_id: str) -> list[dict]:
             break
         vid_offset = data.get("vid-offset")
     return results
+
+
+def get_deal_pipelines() -> list[dict]:
+    """
+    Fetch all HubSpot deal pipelines and their stages.
+
+    Returns:
+      [{"id": "...", "label": "...", "stages": [{"id": "...", "label": "..."}, ...]}, ...]
+
+    Raises: httpx.HTTPStatusError on API error
+    """
+    with _client() as client:
+        resp = client.get("/crm/v3/pipelines/deals")
+        resp.raise_for_status()
+
+    pipelines = []
+    for p in resp.json().get("results", []):
+        stages = [
+            {"id": s["id"], "label": s["label"]}
+            for s in sorted(p.get("stages", []), key=lambda s: s.get("displayOrder", 0))
+        ]
+        pipelines.append({"id": p["id"], "label": p.get("label", p["id"]), "stages": stages})
+    return sorted(pipelines, key=lambda p: p["label"].lower())
 
 
 def build_activity_summary(
