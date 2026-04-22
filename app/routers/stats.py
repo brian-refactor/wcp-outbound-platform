@@ -133,7 +133,7 @@ def overview_stats(db: Session = Depends(get_db), campaign_id: Optional[str] = N
         .scalar() or 0
     )
     total_opened = (
-        eq(db.query(func.count(func.distinct(EmailEvent.prospect_id))), ev_f,
+        eq(db.query(func.count(EmailEvent.id)), ev_f,
            EmailEvent.event_type == "open")
         .scalar() or 0
     )
@@ -220,7 +220,7 @@ def sequences_by_type(db: Session = Depends(get_db), campaign_id: Optional[str] 
         SELECT
             COALESCE(se.campaign_name, se.smartlead_campaign_id) AS campaign_name,
             COUNT(DISTINCT se.id)                                                             AS enrolled,
-            COUNT(DISTINCT CASE WHEN ee.event_type = 'open'         THEN ee.prospect_id END) AS opened,
+            COUNT(CASE WHEN ee.event_type = 'open'         THEN ee.id END) AS opened,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'click'        THEN ee.prospect_id END) AS clicked,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'reply'        THEN ee.prospect_id END) AS replied,
             COUNT(DISTINCT CASE WHEN se.track = 'standard'          THEN se.id END)          AS standard_count,
@@ -258,7 +258,7 @@ def campaigns_funnel(db: Session, campaign_id: Optional[str] = None) -> list[Cam
             COALESCE(se.campaign_name, se.smartlead_campaign_id)              AS label,
             COUNT(DISTINCT se.id)                                              AS enrolled,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'sent'  THEN ee.prospect_id END) AS sent,
-            COUNT(DISTINCT CASE WHEN ee.event_type = 'open'  THEN ee.prospect_id END) AS opened,
+            COUNT(CASE WHEN ee.event_type = 'open'  THEN ee.id END) AS opened,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'click' THEN ee.prospect_id END) AS clicked,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN ee.prospect_id END) AS replied
         FROM sequence_enrollments se
@@ -291,7 +291,7 @@ def sequence_stats(db: Session = Depends(get_db)):
             COALESCE(se.campaign_name, se.smartlead_campaign_id) AS campaign_name,
             se.track,
             COUNT(DISTINCT se.id)                                                          AS enrolled,
-            COUNT(DISTINCT CASE WHEN ee.event_type = 'open'  THEN ee.prospect_id END)     AS opened,
+            COUNT(CASE WHEN ee.event_type = 'open'  THEN ee.id END)                        AS opened,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'click' THEN ee.prospect_id END)     AS clicked,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN ee.prospect_id END)     AS replied,
             COUNT(DISTINCT CASE WHEN se.status = 'bounced'   THEN se.id END)              AS bounced,
