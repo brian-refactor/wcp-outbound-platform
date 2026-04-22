@@ -36,6 +36,7 @@ from app.routers.stats import (
     recent_events,
     sends_by_domain,
     sequence_stats,
+    sequence_email_stats,
     sequences_by_type,
     sync_stats,
 )
@@ -1444,21 +1445,7 @@ def prospect_edit_submit(
 def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
     seq = sequence_stats(db=db)
     seq_types = sequences_by_type(db=db)
-
-    # Top companies by reply count
-    top_companies = db.execute(text("""
-        SELECT
-            p.company,
-            COUNT(DISTINCT se.id)                                                   AS enrolled,
-            COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN p.id END)        AS replied
-        FROM prospects p
-        JOIN sequence_enrollments se ON se.prospect_id = p.id
-        LEFT JOIN email_events ee ON ee.prospect_id = p.id AND ee.event_type = 'reply'
-        WHERE p.company IS NOT NULL AND p.company != ''
-        GROUP BY p.company
-        ORDER BY replied DESC, enrolled DESC
-        LIMIT 15
-    """)).mappings().all()
+    email_steps = sequence_email_stats(db=db)
 
     return templates.TemplateResponse(
         "dashboard/sequences.html",
@@ -1466,7 +1453,7 @@ def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
             "request": request,
             "sequences": seq,
             "seq_types": seq_types,
-            "top_companies": top_companies,
+            "email_steps": email_steps,
             "active_page": "sequences",
         },
     )

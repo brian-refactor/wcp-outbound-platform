@@ -342,6 +342,52 @@ def sync_stats(db: Session = Depends(get_db)):
     )
 
 
+class EmailStepRow(BaseModel):
+    campaign_name: str
+    email_subject: str
+    sent: int
+    opened: int
+    clicked: int
+    replied: int
+    open_rate: float
+    reply_rate: float
+
+
+def sequence_email_stats(db: Session) -> list[EmailStepRow]:
+    """Per-email breakdown within each campaign, ordered by sequence step (sent desc)."""
+    rows = db.execute(text("""
+        SELECT
+            COALESCE(se.campaign_name, se.smartlead_campaign_id) AS campaign_name,
+            ee.email_subject,
+            COUNT(CASE WHEN ee.event_type = 'sent'  THEN ee.id END)                   AS sent,
+            COUNT(CASE WHEN ee.event_type = 'open'  THEN ee.id END)                   AS opened,
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'click' THEN ee.prospect_id END) AS clicked,
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN ee.prospect_id END) AS replied
+        FROM email_events ee
+        JOIN sequence_enrollments se ON se.id = ee.enrollment_id
+        WHERE ee.email_subject IS NOT NULL
+        GROUP BY COALESCE(se.campaign_name, se.smartlead_campaign_id), ee.email_subject
+        ORDER BY campaign_name, sent DESC
+    """)).mappings().all()
+
+    result = []
+    for row in rows:
+        sent = row["sent"] or 0
+        opened = row["opened"] or 0
+        replied = row["replied"] or 0
+        result.append(EmailStepRow(
+            campaign_name=row["campaign_name"],
+            email_subject=row["email_subject"],
+            sent=sent,
+            opened=opened,
+            clicked=row["clicked"] or 0,
+            replied=replied,
+            open_rate=round(opened / sent * 100, 1) if sent > 0 else 0.0,
+            reply_rate=round(replied / sent * 100, 1) if sent > 0 else 0.0,
+        ))
+    return result
+
+
 @router.get("/sends/by-domain", response_model=list[DomainSendRow])
 def sends_by_domain(db: Session = Depends(get_db)):
     rows = db.execute(text("""
