@@ -1,15 +1,16 @@
 """
-HubSpot sync — runs every 5 minutes via Celery beat.
+HubSpot sync — runs every 15 minutes via Celery beat.
 
-Rules:
-  - sent / open / bounce / unsubscribe / complete  → mark synced, no HubSpot call
-  - click   → upsert contact + create note on the contact
-  - reply   → upsert contact + create note + create Deal named
-               "WCP Automated Outbound - {prospect name}"
+Per-campaign rules (from CampaignConfig):
+  trigger="reply"  → upsert contact + note on click/reply + deal on reply  (default)
+  trigger="click"  → upsert contact + note on click/reply + deal on click
+  trigger="open"   → upsert contact + note on open/click/reply + deal on open
+  trigger="none"   → upsert contact + note on click/reply, no deal ever
 
-Batches up to 100 unsynced events per run. Events are marked
-hubspot_synced_at immediately after processing so partial batch
-failures don't re-process already-synced events.
+Campaigns with no CampaignConfig row fall back to trigger="reply" + global
+pipeline/stage IDs — identical to the previous hardcoded behavior.
+
+Batches up to 100 unsynced events per run.
 """
 
 import logging
@@ -22,7 +23,7 @@ from app.worker import celery_app
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 100
-SYNC_EVENT_TYPES = {"click", "reply"}  # only these trigger HubSpot API calls
+_NOTE_EVENT_TYPES = {"click", "reply"}
 
 
 @celery_app.task(name="app.tasks.hubspot_sync.sync_to_hubspot")
@@ -34,6 +35,7 @@ def sync_to_hubspot():
         create_note,
         upsert_contacts,
     )
+    from app.models.campaign_config import CampaignConfig
     from app.models.email_event import EmailEvent
     from app.models.prospect import Prospect
     from app.models.sequence_enrollment import SequenceEnrollment
@@ -41,7 +43,17 @@ def sync_to_hubspot():
     db = SessionLocal()
     synced = 0
     try:
-        # Fetch unsynced events for known prospects
+        # ── Load all campaign configs once (zero queries per-event) ─────────
+        campaign_configs: dict[str, CampaignConfig] = {
+            c.smartlead_campaign_id: c
+            for c in db.execute(select(CampaignConfig)).scalars().all()
+        }
+        open_trigger_campaign_ids: set[str] = {
+            cid for cid, cfg in campaign_configs.items()
+            if cfg.hubspot_trigger_event == "open"
+        }
+
+        # ── Fetch unsynced events ────────────────────────────────────────────
         events = (
             db.execute(
                 select(EmailEvent)
@@ -58,10 +70,41 @@ def sync_to_hubspot():
             logger.info("HubSpot sync: no unsynced events")
             return {"synced": 0}
 
-        # Only upsert contacts for events that will hit the HubSpot API
-        actionable_events = [e for e in events if e.event_type in SYNC_EVENT_TYPES]
+        # ── Batch-fetch enrollment→campaign mapping for open events ──────────
+        # Only needed if any campaign is configured with trigger="open"
+        open_enrollment_campaign_map: dict[str, str] = {}
+        if open_trigger_campaign_ids:
+            open_enrollment_ids = {
+                str(e.enrollment_id)
+                for e in events
+                if e.event_type == "open" and e.enrollment_id
+            }
+            if open_enrollment_ids:
+                enrollments = (
+                    db.execute(
+                        select(SequenceEnrollment)
+                        .where(SequenceEnrollment.id.in_(open_enrollment_ids))
+                    )
+                    .scalars()
+                    .all()
+                )
+                open_enrollment_campaign_map = {
+                    str(e.id): e.smartlead_campaign_id for e in enrollments
+                }
 
+        def _is_actionable(event: EmailEvent) -> bool:
+            if event.event_type in _NOTE_EVENT_TYPES:
+                return True
+            if event.event_type == "open" and event.enrollment_id:
+                campaign_id = open_enrollment_campaign_map.get(str(event.enrollment_id))
+                return campaign_id in open_trigger_campaign_ids
+            return False
+
+        actionable_events = [e for e in events if _is_actionable(e)]
+
+        # ── Contact upsert (batch, only for actionable events) ───────────────
         email_to_hubspot_id: dict[str, str] = {}
+        prospect_map: dict = {}
         if actionable_events:
             prospect_ids = {e.prospect_id for e in actionable_events}
             prospects = (
@@ -88,14 +131,11 @@ def sync_to_hubspot():
             except Exception as e:
                 logger.error("HubSpot contact upsert failed — skipping batch: %s", e)
                 return {"synced": 0}
-        else:
-            prospect_map = {}
 
-        # Process each event
+        # ── Process each event ───────────────────────────────────────────────
         for event in events:
             try:
-                if event.event_type not in SYNC_EVENT_TYPES:
-                    # Mark as synced without making any API calls
+                if not _is_actionable(event):
                     event.hubspot_synced_at = datetime.now(timezone.utc)
                     db.flush()
                     synced += 1
@@ -111,7 +151,23 @@ def sync_to_hubspot():
                     logger.warning("No HubSpot contact ID returned for %s", prospect.email)
                     continue
 
-                # Build note body for click or reply
+                # Look up per-campaign config; fall back to defaults if none
+                campaign_id_str = None
+                enrollment = None
+                if event.enrollment_id:
+                    if event.event_type == "open":
+                        campaign_id_str = open_enrollment_campaign_map.get(str(event.enrollment_id))
+                    else:
+                        enrollment = db.get(SequenceEnrollment, event.enrollment_id)
+                        if enrollment:
+                            campaign_id_str = enrollment.smartlead_campaign_id
+
+                cfg = campaign_configs.get(campaign_id_str) if campaign_id_str else None
+                trigger = cfg.hubspot_trigger_event if cfg else "reply"
+                pipeline_id = cfg.hubspot_pipeline_id if cfg else None
+                stage_id = cfg.hubspot_stage_id if cfg else None
+
+                # Note — created for click/reply always; open only when trigger="open"
                 note_body = _build_note_body(event)
                 create_note(
                     hubspot_contact_id=hubspot_id,
@@ -119,19 +175,19 @@ def sync_to_hubspot():
                     occurred_at=event.occurred_at,
                 )
 
-                # Reply → also create a Deal
-                if event.event_type == "reply":
+                # Deal — only when this event matches the configured trigger
+                if trigger != "none" and event.event_type == trigger:
                     prospect_name = (
                         " ".join(filter(None, [prospect.first_name, prospect.last_name]))
                         or prospect.email
                     )
                     deal_name = f"WCP Automated Outbound - {prospect_name}"
 
-                    # Build full activity history for deal description
-                    enrollment = None
+                    if enrollment is None and event.enrollment_id:
+                        enrollment = db.get(SequenceEnrollment, event.enrollment_id)
+
                     all_events = []
                     if event.enrollment_id:
-                        enrollment = db.get(SequenceEnrollment, event.enrollment_id)
                         all_events = (
                             db.execute(
                                 select(EmailEvent)
@@ -166,9 +222,12 @@ def sync_to_hubspot():
                         hubspot_contact_id=hubspot_id,
                         deal_name=deal_name,
                         description=description,
+                        pipeline_id=pipeline_id,
+                        stage_id=stage_id,
                     )
                     logger.info(
-                        "Created HubSpot deal '%s' for %s", deal_name, prospect.email
+                        "Created HubSpot deal '%s' for %s (trigger=%s)",
+                        deal_name, prospect.email, trigger,
                     )
 
                 event.hubspot_synced_at = datetime.now(timezone.utc)
@@ -191,7 +250,6 @@ def sync_to_hubspot():
 
 
 def _build_note_body(event) -> str:
-    """Format a single email event as a HubSpot note body."""
     parts = [f"Email event: {event.event_type.upper()}"]
     if event.email_subject:
         parts.append(f'Subject: "{event.email_subject}"')
