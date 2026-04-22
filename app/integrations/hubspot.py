@@ -248,6 +248,8 @@ def build_activity_summary(
     campaign_name: str | None,
     track: str,
     events: list[dict],
+    reply_text: str | None = None,
+    sequence_number: int | None = None,
 ) -> str:
     """
     Formats the full outbound email history into a deal description string.
@@ -255,13 +257,17 @@ def build_activity_summary(
     events: list of dicts with keys event_type, occurred_at, email_subject,
             domain_used, clicked_url (all from EmailEvent rows)
     """
+    seq_label = f" (Email #{sequence_number})" if sequence_number else ""
     lines = [
         f"Outbound sequence reply — {prospect_name} <{prospect_email}>",
         f"Company: {company or 'Unknown'}",
-        f"Campaign: {campaign_name or 'Unknown'} | Track at reply: {track}",
-        "",
-        "── Email Activity History ──",
+        f"Campaign: {campaign_name or 'Unknown'} | Track: {track}{seq_label}",
     ]
+
+    if reply_text:
+        lines += ["", "── Reply ──", f"  {reply_text}"]
+
+    lines += ["", "── Email Activity History ──"]
 
     EVENT_LABELS = {
         "sent": "📤 Sent",

@@ -209,6 +209,12 @@ def sync_to_hubspot():
                         for e in all_events
                     ]
 
+                    # Extract reply text and sequence number from raw webhook payload
+                    import json as _json
+                    _payload = _json.loads(event.raw_payload) if event.raw_payload else {}
+                    reply_text = (_payload.get("reply_message") or {}).get("text", "").strip() or None
+                    sequence_number = _payload.get("sequence_number")
+
                     description = build_activity_summary(
                         prospect_name=prospect_name,
                         prospect_email=prospect.email,
@@ -216,6 +222,8 @@ def sync_to_hubspot():
                         campaign_name=enrollment.campaign_name if enrollment else None,
                         track=enrollment.track if enrollment else "unknown",
                         events=event_dicts,
+                        reply_text=reply_text,
+                        sequence_number=sequence_number,
                     )
 
                     create_deal(
