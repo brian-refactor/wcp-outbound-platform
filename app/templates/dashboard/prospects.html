@@ -74,6 +74,26 @@
   </span>
 </div>
 {% endif %}
+{% if request.query_params.get('delete_error') == 'nofilter' %}
+<div class="rounded-xl border border-red-200 bg-red-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+  <span class="text-sm font-medium text-red-800">
+    Bulk delete requires at least one active filter when all pages are selected. Apply a filter (e.g. email status, investor type) and try again.
+  </span>
+</div>
+{% endif %}
+{% if request.query_params.get('delete_error') == 'toomany' %}
+<div class="rounded-xl border border-red-200 bg-red-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+  <span class="text-sm font-medium text-red-800">
+    Bulk delete is limited to 1,000 prospects at a time. Your selection matched {{ request.query_params.get('count') }} — narrow your filter and delete in batches.
+  </span>
+</div>
+{% endif %}
 
 {# ── Action buttons ── #}
 <div class="flex items-center justify-between mb-5">
@@ -543,6 +563,26 @@
 
   function submitBulkDelete() {
     const count = _selectedCount();
+    const isSelectAll = document.getElementById('select-all-flag').value === '1';
+    const hasFilter = [
+      document.querySelector('[name="search"]')?.value,
+      document.querySelector('[name="status"]')?.value,
+      document.querySelector('[name="investor_type"]')?.value,
+      document.querySelector('[name="wealth_tier"]')?.value,
+      document.querySelector('[name="enrolled"]')?.value,
+      document.querySelector('[name="email_validation"]')?.value,
+      document.querySelector('[name="campaign_id"]')?.value,
+      document.querySelector('[name="intro"]')?.value,
+    ].some(v => v && v.trim() !== '');
+
+    if (isSelectAll && !hasFilter) {
+      alert('Bulk delete requires at least one active filter when all pages are selected. Apply a filter first (e.g. email status, investor type).');
+      return;
+    }
+    if (count > 1000) {
+      alert('Bulk delete is limited to 1,000 prospects at a time. Your selection has ' + count + ' — narrow your filter and delete in batches.');
+      return;
+    }
     if (!confirm('Permanently delete ' + count + ' prospect(s) and all their enrollments and events? This cannot be undone.')) return;
     _showProgress(
       'Deleting ' + count + ' prospect' + (count !== 1 ? 's' : '') + '…',

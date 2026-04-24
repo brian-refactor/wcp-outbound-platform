@@ -1213,7 +1213,13 @@ def bulk_delete_prospects(
     intro: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
+    BULK_DELETE_LIMIT = 1000
+
     if select_all == "1":
+        has_filter = any([search, status, investor_type, wealth_tier, enrolled, email_validation, campaign_id, intro])
+        if not has_filter:
+            return RedirectResponse(url="/dashboard/prospects?delete_error=nofilter", status_code=303)
+
         q = db.query(Prospect)
         if search:
             q = q.filter(
@@ -1250,8 +1256,19 @@ def bulk_delete_prospects(
             q = q.filter(Prospect.personalized_intro.isnot(None))
         elif intro == "missing":
             q = q.filter(Prospect.personalized_intro.is_(None))
-        prospects = q.all()
+        prospects = q.limit(BULK_DELETE_LIMIT + 1).all()
+        if len(prospects) > BULK_DELETE_LIMIT:
+            count = db.query(Prospect).count()
+            return RedirectResponse(
+                url=f"/dashboard/prospects?delete_error=toomany&count={len(prospects)}",
+                status_code=303,
+            )
     elif prospect_ids:
+        if len(prospect_ids) > BULK_DELETE_LIMIT:
+            return RedirectResponse(
+                url=f"/dashboard/prospects?delete_error=toomany&count={len(prospect_ids)}",
+                status_code=303,
+            )
         prospects = db.query(Prospect).filter(Prospect.id.in_(prospect_ids)).all()
     else:
         return RedirectResponse(url="/dashboard/prospects", status_code=303)
