@@ -377,7 +377,7 @@
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
     <h2 class="text-sm font-semibold text-gray-700 mb-1">Import from HubSpot</h2>
     <p class="text-xs text-gray-400 mb-5">
-      Pull contacts from a HubSpot list or segment. Deduplicates against existing prospects and validates emails via ZeroBounce.
+      Pull contacts from a HubSpot list or segment. Deduplicates against existing prospects and validates emails via Bouncer.
     </p>
     <a href="/dashboard/prospects/import/hubspot"
        class="inline-flex items-center gap-2 rounded-lg bg-orange-500 text-white px-5 py-2.5 text-sm font-medium hover:bg-orange-600 transition-colors">
@@ -445,6 +445,47 @@
     }
   }
   {% endif %}
+
+  function showImportSpinner(title, sub) {
+    document.getElementById('import-spinner-title').textContent = title;
+    document.getElementById('import-spinner-sub').textContent = sub;
+    document.getElementById('import-spinner').classList.remove('hidden');
+  }
+
+  document.querySelectorAll('form').forEach(function(form) {
+    form.addEventListener('submit', function() {
+      const btn = form.querySelector('button[type="submit"]');
+      const label = btn ? btn.textContent.trim() : 'Processing';
+      let title = 'Processing…';
+      let sub   = 'Please wait — do not close this tab.';
+      if (label.includes('Map') || label.includes('Next')) {
+        title = 'Reading your CSV…';
+        sub   = 'Parsing columns — just a moment.';
+      } else if (label.includes('Import')) {
+        title = 'Importing prospects…';
+        sub   = 'Saving records to the database — this may take a minute for large files.';
+      } else if (label.includes('Fetch')) {
+        title = 'Fetching HubSpot list…';
+        sub   = 'Pulling contacts and validating emails — this may take a moment.';
+      }
+      showImportSpinner(title, sub);
+    });
+  });
 </script>
+
+<div id="import-spinner"
+     class="hidden fixed inset-0 z-[100] flex items-center justify-center"
+     style="background: rgba(0,0,0,0.45);">
+  <div class="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-5 min-w-[300px] max-w-sm mx-4">
+    <svg class="w-10 h-10 text-indigo-500 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+      <path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+    </svg>
+    <div class="text-center">
+      <div id="import-spinner-title" class="text-sm font-semibold text-gray-800 mb-1"></div>
+      <div id="import-spinner-sub"   class="text-xs text-gray-400"></div>
+    </div>
+  </div>
+</div>
 
 {% endblock %}

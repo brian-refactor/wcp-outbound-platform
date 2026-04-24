@@ -532,10 +532,10 @@
 
   function submitBulkValidateEmails() {
     const count = _selectedCount();
-    if (!confirm('Validate emails for ' + count + ' prospect(s) via ZeroBounce?')) return;
+    if (!confirm('Validate emails for ' + count + ' prospect(s) via Bouncer?')) return;
     _showProgress(
       'Validating ' + count + ' email' + (count !== 1 ? 's' : '') + '…',
-      'Checking via ZeroBounce — this may take a moment.'
+      'Checking via Bouncer — this may take a moment.'
     );
     document.getElementById('bulk-form').setAttribute('action', '/dashboard/prospects/bulk-validate-emails');
     document.getElementById('bulk-form').submit();
@@ -544,6 +544,10 @@
   function submitBulkDelete() {
     const count = _selectedCount();
     if (!confirm('Permanently delete ' + count + ' prospect(s) and all their enrollments and events? This cannot be undone.')) return;
+    _showProgress(
+      'Deleting ' + count + ' prospect' + (count !== 1 ? 's' : '') + '…',
+      'Removing records — do not close this tab.'
+    );
     document.getElementById('bulk-form').setAttribute('action', '/dashboard/prospects/bulk-delete');
     document.getElementById('bulk-form').submit();
   }
