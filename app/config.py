@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     hubspot_deal_pipeline_id: str = "890766156"      # Outbound - Cold Leads pipeline
     hubspot_deal_stage_id: str = "1341410439"       # New Lead to Contact stage
 
-    # ZeroBounce
-    zerobounce_api_key: str = ""  # from zerobounce.net account
+    # Bouncer
+    bouncer_api_key: str = ""  # from usebouncer.com account
 
     # Anthropic (Claude API — personalized email intros)
     anthropic_api_key: str = ""

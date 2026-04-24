@@ -2,9 +2,9 @@
 Email validation task — runs every 30 minutes via Celery beat.
 
 Picks up prospects with no email_validation_status, validates in batches
-of 200 via ZeroBounce, and writes the result back to the DB.
+via Bouncer, and writes the result back to the DB.
 
-Skips gracefully if ZEROBOUNCE_API_KEY is not configured.
+Skips gracefully if BOUNCER_API_KEY is not configured.
 """
 
 import logging
@@ -23,11 +23,11 @@ BATCH_SIZE = 200
 def validate_emails():
     from app.config import settings
     from app.database import SessionLocal
-    from app.integrations.zerobounce import validate_batch
+    from app.integrations.bouncer import validate_batch
     from app.models.prospect import Prospect
 
-    if not settings.zerobounce_api_key:
-        logger.info("Email validation skipped: ZEROBOUNCE_API_KEY not set")
+    if not settings.bouncer_api_key:
+        logger.info("Email validation skipped: BOUNCER_API_KEY not set")
         return {"validated": 0}
 
     db = SessionLocal()
@@ -59,7 +59,6 @@ def validate_emails():
                 prospect.email_validated_at = now
                 validated += 1
             else:
-                # ZeroBounce returned no result for this email — mark unknown
                 prospect.email_validation_status = "unknown"
                 prospect.email_validated_at = now
                 validated += 1

@@ -1,6 +1,6 @@
 <div class="flex items-center gap-8">
   <div>
-    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">ZeroBounce Credits Remaining</div>
+    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Bouncer Credits Remaining</div>
     <div class="flex items-baseline gap-2">
       <span class="text-3xl font-bold {{ 'text-red-600' if low else 'text-gray-900' }}">
         {% if credits >= 0 %}{{ credits }}{% else %}—{% endif %}
@@ -24,7 +24,7 @@
   <div class="border-l border-gray-200 pl-8 text-xs text-gray-400 leading-relaxed">
     Credits are consumed each time an email is<br>
     validated. Enrollment is blocked below 0.<br>
-    <a href="https://app.zerobounce.net/members/creditrefill" target="_blank" rel="noopener"
+    <a href="https://app.usebouncer.com" target="_blank" rel="noopener"
        class="text-indigo-600 hover:underline mt-1 inline-block">Buy more credits →</a>
   </div>
 </div>

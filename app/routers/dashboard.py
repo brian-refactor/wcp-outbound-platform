@@ -25,7 +25,7 @@ from app.database import get_db
 from app.integrations import apollo as apollo_client
 from app.integrations import edgar as edgar_client
 from app.integrations import hunter as hunter_client
-from app.integrations import smartlead, zerobounce
+from app.integrations import smartlead, bouncer
 from app.models.email_event import EmailEvent
 from app.models.prospect import Prospect
 from app.models.sequence_enrollment import SequenceEnrollment
@@ -113,7 +113,7 @@ def dashboard_overview(
     db: Session = Depends(get_db),
     campaign_id: Optional[str] = Query(None),
 ):
-    from app.integrations.zerobounce import get_credits
+    from app.integrations.bouncer import get_credits
     from app.models.prospect import Prospect as ProspectModel
     campaigns = []
     try:
@@ -158,7 +158,7 @@ def activity_fragment(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/fragments/zb-credits", response_class=HTMLResponse)
 def zb_credits_fragment(request: Request, db: Session = Depends(get_db)):
-    credits = zerobounce.get_credits()
+    credits = bouncer.get_credits()
     used = db.query(func.count(Prospect.id)).filter(
         Prospect.email_validated_at.is_not(None)
     ).scalar() or 0
@@ -171,7 +171,7 @@ def zb_credits_fragment(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/fragments/zb-alert", response_class=HTMLResponse)
 def zb_alert_fragment(request: Request):
-    credits = zerobounce.get_credits()
+    credits = bouncer.get_credits()
     if credits < 0 or credits >= 500:
         return HTMLResponse("")
     return templates.TemplateResponse(
@@ -462,7 +462,7 @@ def bulk_validate_emails(
     db: Session = Depends(get_db),
 ):
     from datetime import datetime, timezone
-    from app.integrations.zerobounce import validate_batch
+    from app.integrations.bouncer import validate_batch
 
     if select_all == "1":
         prospects = db.query(Prospect).all()
@@ -659,16 +659,16 @@ def prospect_new_submit(
         db.rollback()
         return render_error(f"A prospect with email {email} already exists.")
 
-    # Validate email immediately via ZeroBounce (single-email call)
+    # Validate email immediately via Bouncer (single-email call)
     try:
-        results = zerobounce.validate_batch([email])
+        results = bouncer.validate_batch([email])
         validation_status = results.get(email)
         if validation_status:
             prospect.email_validation_status = validation_status
             prospect.email_validated_at = datetime.now(timezone.utc)
             db.commit()
     except Exception as e:
-        logger.warning("ZeroBounce validation failed for %s: %s", email, e)
+        logger.warning("Bouncer validation failed for %s: %s", email, e)
 
     # Optional enrollment
     if campaign_id and campaign_id.strip():
@@ -732,7 +732,7 @@ async def hubspot_import_preview(
     import base64
     import json as _json2
     from app.integrations import hubspot as hubspot_client
-    from app.integrations.zerobounce import validate_batch
+    from app.integrations.bouncer import validate_batch
 
     form = await request.form()
     list_id   = (form.get("list_id") or "").strip()
@@ -767,15 +767,15 @@ async def hubspot_import_preview(
     new_contacts = [c for c in contacts if c["email"] not in existing_emails]
     duplicate_count = len(contacts) - len(new_contacts)
 
-    # ZeroBounce validation — run in batches of 200
+    # Bouncer validation — run in batches of 200
     validated: dict[str, str] = {}
-    if new_contacts and settings.zerobounce_api_key:
+    if new_contacts and settings.bouncer_api_key:
         new_emails = [c["email"] for c in new_contacts]
         try:
             for i in range(0, len(new_emails), 200):
                 validated.update(validate_batch(new_emails[i : i + 200]))
         except Exception as exc:
-            logger.warning("ZeroBounce validation failed during HubSpot import: %s", exc)
+            logger.warning("Bouncer validation failed during HubSpot import: %s", exc)
 
     valid_count = catchall_count = unknown_count = invalid_count = 0
     for c in new_contacts:
@@ -1440,7 +1440,7 @@ def prospect_edit_submit(
         # Validate email if not already validated
         if prospect.email_validation_status != "valid":
             try:
-                results = zerobounce.validate_batch([prospect.email])
+                results = bouncer.validate_batch([prospect.email])
                 validation_status = results.get(prospect.email)
                 if validation_status:
                     prospect.email_validation_status = validation_status
@@ -1448,7 +1448,7 @@ def prospect_edit_submit(
                     db.commit()
                     db.refresh(prospect)
             except Exception as e:
-                logger.warning("ZeroBounce validation failed for %s: %s", prospect.email, e)
+                logger.warning("Bouncer validation failed for %s: %s", prospect.email, e)
 
         if prospect.email_validation_status != "valid":
             status_label = prospect.email_validation_status or "not validated"
@@ -1647,7 +1647,7 @@ def dashboard_mailboxes(request: Request, db: Session = Depends(get_db)):
 def dashboard_sync(request: Request, db: Session = Depends(get_db)):
     from datetime import timedelta
     sync = sync_stats(db=db)
-    zb_credits = zerobounce.get_credits()
+    zb_credits = bouncer.get_credits()
     zb_used = db.query(func.count(Prospect.id)).filter(
         Prospect.email_validated_at.is_not(None)
     ).scalar() or 0
@@ -1939,7 +1939,7 @@ def edgar_confirm_prospect(
         email = f"unknown_{uuid.uuid4().hex[:8]}@edgar.placeholder"
         email_status = "unknown"
     else:
-        email_status = "unknown"  # ZeroBounce will validate on next batch run
+        email_status = "unknown"  # Bouncer will validate on next batch run
 
     prospect = Prospect(
         id=str(uuid.uuid4()),
@@ -2196,14 +2196,14 @@ def leads_confirm_prospect(
     # Validate immediately if it's a real email (not a placeholder)
     if "@apollo.placeholder" not in email:
         try:
-            results = zerobounce.validate_batch([email])
+            results = bouncer.validate_batch([email])
             status = results.get(email)
             if status:
                 prospect.email_validation_status = status
                 prospect.email_validated_at = datetime.now(timezone.utc)
                 db.commit()
         except Exception as e:
-            logger.warning("ZeroBounce validation failed for %s: %s", email, e)
+            logger.warning("Bouncer validation failed for %s: %s", email, e)
 
     return RedirectResponse(url=f"/dashboard/prospects/{prospect.id}", status_code=303)
 
@@ -2321,14 +2321,14 @@ def leads_batch_confirm(
             "geography": (geography[idx].strip() or None) if idx < len(geography) else None,
         })
 
-    # Batch validate all real emails in one ZeroBounce call
+    # Batch validate all real emails in one Bouncer call
     real_emails = [r["email"] for r in to_save if "@apollo.placeholder" not in r["email"]]
     zb_results: dict = {}
     if real_emails:
         try:
-            zb_results = zerobounce.validate_batch(real_emails)
+            zb_results = bouncer.validate_batch(real_emails)
         except Exception as e:
-            logger.warning("ZeroBounce batch validation failed: %s", e)
+            logger.warning("Bouncer batch validation failed: %s", e)
 
     now = datetime.now(timezone.utc)
     saved = 0
@@ -2374,7 +2374,7 @@ def spend_page(
     inactive = [t for t in tools if t.status != "active"]
     total_active = float(sum(t.monthly_cost for t in active))
 
-    zb_credits = zerobounce.get_credits()
+    zb_credits = bouncer.get_credits()
     zb_used = db.query(func.count(Prospect.id)).filter(
         Prospect.email_validated_at.is_not(None)
     ).scalar() or 0
