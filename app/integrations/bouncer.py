@@ -23,7 +23,7 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 BATCH_URL = "https://api.usebouncer.com/v1.1/email/verify/batch/sync"
-CREDITS_URL = "https://api.usebouncer.com/v1/credits"
+CREDITS_URL = "https://api.usebouncer.com/v1.1/credits"
 MAX_BATCH = 10_000
 
 
