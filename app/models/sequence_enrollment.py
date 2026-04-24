@@ -41,6 +41,9 @@ class SequenceEnrollment(Base):
         DateTime(timezone=True), nullable=True
     )
 
+    # Smartlead AI lead category (e.g. "Interested", "Not Interested", "Do Not Contact")
+    smartlead_category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
     __table_args__ = (
         # Fast lookup of all enrollments for a prospect
         Index("idx_enrollments_prospect", "prospect_id"),

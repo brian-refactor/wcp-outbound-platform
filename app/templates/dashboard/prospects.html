@@ -293,11 +293,31 @@
                 {% set parts = entry.split('|') %}
                 {% set name = parts[0] %}
                 {% set estatus = parts[1] if parts|length > 1 else '' %}
-                <span class="px-2 py-0.5 rounded-full text-xs font-medium
-                             {{ status_colors.get(estatus, 'bg-gray-100 text-gray-600') }}"
-                      title="{{ estatus }}">
-                  {{ name }}
-                </span>
+                {% set ecategory = parts[2] if parts|length > 2 else '' %}
+                <div class="flex flex-col gap-0.5">
+                  <span class="px-2 py-0.5 rounded-full text-xs font-medium
+                               {{ status_colors.get(estatus, 'bg-gray-100 text-gray-600') }}"
+                        title="{{ estatus }}">
+                    {{ name }}
+                  </span>
+                  {% if ecategory %}
+                  {% set cat_colors = {
+                    'Interested':      'bg-green-100 text-green-700',
+                    'Meeting Booked':  'bg-blue-100 text-blue-700',
+                    'Not Interested':  'bg-orange-100 text-orange-700',
+                    'Do Not Contact':  'bg-red-100 text-red-700',
+                    'Out of Office':   'bg-yellow-100 text-yellow-700',
+                    'Wrong Person':    'bg-gray-100 text-gray-500',
+                    'Unqualified':     'bg-gray-100 text-gray-500',
+                    'Follow Up':       'bg-purple-100 text-purple-700',
+                  } %}
+                  <span class="px-2 py-0.5 rounded-full text-xs font-medium
+                               {{ cat_colors.get(ecategory, 'bg-gray-100 text-gray-500') }}"
+                        title="AI Category">
+                    {{ ecategory }}
+                  </span>
+                  {% endif %}
+                </div>
               {% endfor %}
               </div>
             {% else %}

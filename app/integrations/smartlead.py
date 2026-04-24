@@ -92,3 +92,45 @@ def list_email_accounts() -> list[dict]:
         response = client.get("/email-accounts")
         response.raise_for_status()
         return response.json()
+
+
+# Smartlead's fixed AI lead category IDs → human-readable names.
+# Confirmed: 3 = Not Interested, 4 = Do Not Contact.
+CATEGORY_NAMES: dict[int, str] = {
+    1: "Interested",
+    2: "Meeting Booked",
+    3: "Not Interested",
+    4: "Do Not Contact",
+    5: "Out of Office",
+    6: "Wrong Person",
+    7: "Unqualified",
+    8: "Follow Up",
+}
+
+
+def get_campaign_lead_categories(campaign_id: int) -> dict[str, str | None]:
+    """
+    Return {email_lower: category_name} for every lead in the campaign.
+    Leads with no category set have value None.
+    """
+    results: dict[str, str | None] = {}
+    offset = 0
+    with _client() as client:
+        while True:
+            response = client.get(
+                f"/campaigns/{campaign_id}/leads",
+                params={"limit": 100, "offset": offset},
+            )
+            response.raise_for_status()
+            data = response.json()
+            leads = data.get("data", [])
+            for lead in leads:
+                email = (lead.get("lead") or {}).get("email", "").lower().strip()
+                category_id = lead.get("lead_category_id")
+                if email:
+                    results[email] = CATEGORY_NAMES.get(category_id) if category_id else None
+            if len(leads) < 100:
+                break
+            offset += 100
+    logger.info("Fetched categories for %d leads in campaign %s", len(results), campaign_id)
+    return results

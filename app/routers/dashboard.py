@@ -214,7 +214,7 @@ def dashboard_prospects(
             (SELECT se.track FROM sequence_enrollments se
              WHERE se.prospect_id = p.id ORDER BY se.enrolled_at DESC LIMIT 1)          AS latest_track,
             (SELECT string_agg(
-                COALESCE(se.campaign_name, se.smartlead_campaign_id) || '|' || se.status,
+                COALESCE(se.campaign_name, se.smartlead_campaign_id) || '|' || se.status || '|' || COALESCE(se.smartlead_category, ''),
                 ',' ORDER BY se.enrolled_at DESC
              ) FROM sequence_enrollments se
              WHERE se.prospect_id = p.id)                                                AS enrollments_summary,

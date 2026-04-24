@@ -233,6 +233,22 @@
       High Intent
     </span>
     {% endif %}
+    {% if enrollment.smartlead_category %}
+    {% set cat_colors = {
+      'Interested':      'bg-green-100 text-green-700',
+      'Meeting Booked':  'bg-blue-100 text-blue-700',
+      'Not Interested':  'bg-orange-100 text-orange-700',
+      'Do Not Contact':  'bg-red-100 text-red-700',
+      'Out of Office':   'bg-yellow-100 text-yellow-700',
+      'Wrong Person':    'bg-gray-100 text-gray-500',
+      'Unqualified':     'bg-gray-100 text-gray-500',
+      'Follow Up':       'bg-purple-100 text-purple-700',
+    } %}
+    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium
+                 {{ cat_colors.get(enrollment.smartlead_category, 'bg-gray-100 text-gray-500') }}">
+      {{ enrollment.smartlead_category }}
+    </span>
+    {% endif %}
     <div class="ml-auto flex flex-wrap gap-6 text-xs text-gray-500">
       <span>Enrolled {{ enrollment.enrolled_at | to_et('%b %d, %Y %H:%M') }}</span>
       {% if enrollment.high_intent_switched_at %}
