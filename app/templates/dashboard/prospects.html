@@ -212,6 +212,14 @@
 <form id="bulk-form" method="post" action="/dashboard/prospects/bulk-enroll">
   <input type="hidden" name="campaign_name" id="bulk-campaign-name" value=""/>
   <input type="hidden" name="select_all" id="select-all-flag" value="0"/>
+  <input type="hidden" name="search" value="{{ search }}"/>
+  <input type="hidden" name="status" value="{{ status_filter }}"/>
+  <input type="hidden" name="investor_type" value="{{ investor_type_filter }}"/>
+  <input type="hidden" name="wealth_tier" value="{{ wealth_tier_filter }}"/>
+  <input type="hidden" name="enrolled" value="{{ enrolled_filter }}"/>
+  <input type="hidden" name="email_validation" value="{{ request.query_params.get('email_validation', '') }}"/>
+  <input type="hidden" name="campaign_id" value="{{ selected_campaign_id }}"/>
+  <input type="hidden" name="intro" value="{{ intro_filter }}"/>
 
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
     <table class="w-full text-sm">

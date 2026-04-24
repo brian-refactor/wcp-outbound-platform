@@ -1203,10 +1203,54 @@ def bulk_delete_prospects(
     request: Request,
     prospect_ids: Optional[list[str]] = Form(None),
     select_all: str = Form("0"),
+    search: Optional[str] = Form(None),
+    status: Optional[str] = Form(None),
+    investor_type: Optional[str] = Form(None),
+    wealth_tier: Optional[str] = Form(None),
+    enrolled: Optional[str] = Form(None),
+    email_validation: Optional[str] = Form(None),
+    campaign_id: Optional[str] = Form(None),
+    intro: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     if select_all == "1":
-        prospects = db.query(Prospect).all()
+        q = db.query(Prospect)
+        if search:
+            q = q.filter(
+                Prospect.email.ilike(f"%{search}%")
+                | Prospect.first_name.ilike(f"%{search}%")
+                | Prospect.last_name.ilike(f"%{search}%")
+                | Prospect.company.ilike(f"%{search}%")
+            )
+        if status:
+            sub = db.query(SequenceEnrollment.prospect_id).filter(
+                SequenceEnrollment.status == status
+            ).subquery()
+            q = q.filter(Prospect.id.in_(sub))
+        if investor_type:
+            q = q.filter(Prospect.investor_type == investor_type)
+        if wealth_tier:
+            q = q.filter(Prospect.wealth_tier == wealth_tier)
+        if enrolled == "yes":
+            sub = db.query(SequenceEnrollment.prospect_id).subquery()
+            q = q.filter(Prospect.id.in_(sub))
+        elif enrolled == "no":
+            sub = db.query(SequenceEnrollment.prospect_id).subquery()
+            q = q.filter(Prospect.id.notin_(sub))
+        if email_validation == "none":
+            q = q.filter(Prospect.email_validation_status.is_(None))
+        elif email_validation:
+            q = q.filter(Prospect.email_validation_status == email_validation)
+        if campaign_id:
+            sub = db.query(SequenceEnrollment.prospect_id).filter(
+                SequenceEnrollment.smartlead_campaign_id == campaign_id
+            ).subquery()
+            q = q.filter(Prospect.id.in_(sub))
+        if intro == "has":
+            q = q.filter(Prospect.personalized_intro.isnot(None))
+        elif intro == "missing":
+            q = q.filter(Prospect.personalized_intro.is_(None))
+        prospects = q.all()
     elif prospect_ids:
         prospects = db.query(Prospect).filter(Prospect.id.in_(prospect_ids)).all()
     else:
