@@ -51,23 +51,22 @@ def validate_emails():
             logger.info("Email validation: no unvalidated prospects")
             return {"validated": 0}
 
-        emails = [p.email for p in prospects]
-        results = validate_batch(emails)
-
         now = datetime.now(timezone.utc)
         validated = 0
-        for prospect in prospects:
-            status = results.get(prospect.email.lower())
-            if status:
-                prospect.email_validation_status = status
-                prospect.email_validated_at = now
-                validated += 1
-            else:
-                prospect.email_validation_status = "unknown"
-                prospect.email_validated_at = now
-                validated += 1
 
-        db.commit()
+        for i in range(0, len(prospects), REVALIDATE_BATCH_SIZE):
+            batch = prospects[i:i + REVALIDATE_BATCH_SIZE]
+            emails = [p.email for p in batch]
+            results = validate_batch(emails)
+            for prospect in batch:
+                status = results.get(prospect.email.lower())
+                prospect.email_validation_status = status if status else "unknown"
+                prospect.email_validated_at = now
+                validated += 1
+            db.commit()
+            if i + REVALIDATE_BATCH_SIZE < len(prospects):
+                time.sleep(1)
+
         logger.info("Email validation complete: %d prospects validated", validated)
         return {"validated": validated}
 
