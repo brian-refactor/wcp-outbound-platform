@@ -61,7 +61,7 @@ def validate_batch(emails: list[str]) -> dict[str, str]:
         response = client.post(
             BATCH_URL,
             headers={"x-api-key": settings.bouncer_api_key, "Content-Type": "application/json"},
-            json=[{"email": e} for e in emails[:MAX_BATCH]],
+            json=emails[:MAX_BATCH],
         )
         response.raise_for_status()
         data = response.json()
