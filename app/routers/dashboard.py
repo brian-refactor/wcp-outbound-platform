@@ -324,6 +324,10 @@ def dashboard_prospects(
         text("SELECT COUNT(*) FROM prospects WHERE personalized_intro IS NULL")
     ).scalar() or 0
 
+    unknown_email_count = db.execute(
+        text("SELECT COUNT(*) FROM prospects WHERE email_validation_status = 'unknown'")
+    ).scalar() or 0
+
     return templates.TemplateResponse(
         "dashboard/prospects.html",
         {
@@ -341,6 +345,7 @@ def dashboard_prospects(
             "campaigns": campaigns,
             "selected_campaign_id": campaign_id or "",
             "intro_missing_count": intro_missing_count,
+            "unknown_email_count": unknown_email_count,
             "active_page": "prospects",
         },
     )
@@ -493,6 +498,50 @@ def bulk_validate_emails(
 
     return RedirectResponse(
         url=f"/dashboard/prospects?bulk_validated={validated}",
+        status_code=303,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Revalidate all unknown emails
+# ---------------------------------------------------------------------------
+
+@router.post("/prospects/revalidate-unknown", response_class=HTMLResponse)
+def revalidate_unknown_emails(request: Request, db: Session = Depends(get_db)):
+    from datetime import datetime, timezone
+    from app.integrations.bouncer import validate_batch
+
+    prospects = (
+        db.query(Prospect)
+        .filter(Prospect.email_validation_status == "unknown")
+        .all()
+    )
+
+    if not prospects:
+        return RedirectResponse(url="/dashboard/prospects?revalidated=0", status_code=303)
+
+    now = datetime.now(timezone.utc)
+    validated = 0
+    BATCH_SIZE = 200
+
+    try:
+        for i in range(0, len(prospects), BATCH_SIZE):
+            batch = prospects[i:i + BATCH_SIZE]
+            emails = [p.email for p in batch]
+            results = validate_batch(emails)
+            for prospect in batch:
+                status = results.get(prospect.email.lower())
+                prospect.email_validation_status = status if status else "unknown"
+                prospect.email_validated_at = now
+                validated += 1
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Revalidate unknown emails failed: %s", e)
+        return RedirectResponse(url="/dashboard/prospects?bulk_validated_error=1", status_code=303)
+
+    return RedirectResponse(
+        url=f"/dashboard/prospects?revalidated={validated}",
         status_code=303,
     )
 
