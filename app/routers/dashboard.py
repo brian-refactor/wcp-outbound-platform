@@ -169,6 +169,37 @@ def zb_credits_fragment(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/fragments/revalidate-status", response_class=HTMLResponse)
+def revalidate_status_fragment(request: Request, db: Session = Depends(get_db)):
+    count = db.execute(
+        text("SELECT COUNT(*) FROM prospects WHERE email_validation_status = 'unknown'")
+    ).scalar() or 0
+
+    if count == 0:
+        return HTMLResponse(
+            '<div id="revalidate-status" class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">'
+            '<svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">'
+            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>'
+            "</svg>"
+            '<span class="text-sm font-medium text-green-800">Revalidation complete — all unknown emails have been processed.</span>'
+            "</div>"
+        )
+
+    return HTMLResponse(
+        '<div id="revalidate-status"'
+        ' hx-get="/dashboard/fragments/revalidate-status"'
+        ' hx-trigger="every 10s"'
+        ' hx-swap="outerHTML"'
+        ' class="rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 mb-5 flex items-center gap-3">'
+        '<svg class="w-4 h-4 text-blue-500 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">'
+        '<circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>'
+        '<path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>'
+        "</svg>"
+        f'<span class="text-sm font-medium text-blue-800">Revalidation in progress — <strong>{count}</strong> unknown emails remaining. Updating every 10s…</span>'
+        "</div>"
+    )
+
+
 @router.get("/fragments/zb-alert", response_class=HTMLResponse)
 def zb_alert_fragment(request: Request):
     credits = bouncer.get_credits()
