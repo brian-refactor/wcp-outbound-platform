@@ -54,13 +54,14 @@
   </span>
 </div>
 {% endif %}
-{% if request.query_params.get('revalidated') is not none and request.query_params.get('revalidated') != '' %}
-<div class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
-  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+{% if request.query_params.get('revalidate_started') %}
+<div class="rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-blue-500 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
+    <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+    <path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
   </svg>
-  <span class="text-sm font-medium text-green-800">
-    Revalidated {{ request.query_params.get('revalidated') }} unknown email{{ 's' if request.query_params.get('revalidated') != '1' else '' }} via Bouncer.
+  <span class="text-sm font-medium text-blue-800">
+    Revalidation running in background — processing unknowns in small batches via Bouncer. Refresh in a few minutes to see updated statuses.
   </span>
 </div>
 {% endif %}

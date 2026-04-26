@@ -507,43 +507,10 @@ def bulk_validate_emails(
 # ---------------------------------------------------------------------------
 
 @router.post("/prospects/revalidate-unknown", response_class=HTMLResponse)
-def revalidate_unknown_emails(request: Request, db: Session = Depends(get_db)):
-    from datetime import datetime, timezone
-    from app.integrations.bouncer import validate_batch
-
-    prospects = (
-        db.query(Prospect)
-        .filter(Prospect.email_validation_status == "unknown")
-        .all()
-    )
-
-    if not prospects:
-        return RedirectResponse(url="/dashboard/prospects?revalidated=0", status_code=303)
-
-    now = datetime.now(timezone.utc)
-    validated = 0
-    BATCH_SIZE = 200
-
-    try:
-        for i in range(0, len(prospects), BATCH_SIZE):
-            batch = prospects[i:i + BATCH_SIZE]
-            emails = [p.email for p in batch]
-            results = validate_batch(emails)
-            for prospect in batch:
-                status = results.get(prospect.email.lower())
-                prospect.email_validation_status = status if status else "unknown"
-                prospect.email_validated_at = now
-                validated += 1
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        logger.error("Revalidate unknown emails failed: %s", e)
-        return RedirectResponse(url="/dashboard/prospects?bulk_validated_error=1", status_code=303)
-
-    return RedirectResponse(
-        url=f"/dashboard/prospects?revalidated={validated}",
-        status_code=303,
-    )
+def revalidate_unknown_emails(request: Request):
+    from app.worker import celery_app
+    celery_app.send_task("app.tasks.email_validation.revalidate_unknown_emails")
+    return RedirectResponse(url="/dashboard/prospects?revalidate_started=1", status_code=303)
 
 
 # ---------------------------------------------------------------------------
