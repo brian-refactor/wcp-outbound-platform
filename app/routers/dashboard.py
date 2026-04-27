@@ -451,6 +451,7 @@ def prospect_bulk_enroll(
     select_all: str = Form("0"),
     campaign_id: str = Form(...),
     campaign_name: str = Form(""),
+    include_catch_all: str = Form("0"),
 ):
     if not campaign_id:
         return RedirectResponse(url="/dashboard/prospects?bulk_error=missing_fields", status_code=303)
@@ -463,11 +464,12 @@ def prospect_bulk_enroll(
         return RedirectResponse(url="/dashboard/prospects?bulk_error=missing_fields", status_code=303)
 
     failed = []
+    allowed_statuses = ("valid", "catch-all") if include_catch_all == "1" else ("valid",)
 
     # Filter: invalid email status
     enrollable = []
     for prospect in prospects:
-        if prospect.email_validation_status not in ("valid", "catch-all"):
+        if prospect.email_validation_status not in allowed_statuses:
             logger.warning(
                 "Bulk enroll skipped %s — email status: %s",
                 prospect.email, prospect.email_validation_status or "not validated",

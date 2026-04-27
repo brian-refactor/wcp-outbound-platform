@@ -295,6 +295,7 @@
 <form id="bulk-form" method="post" action="/dashboard/prospects/bulk-enroll">
   <input type="hidden" name="campaign_name" id="bulk-campaign-name" value=""/>
   <input type="hidden" name="select_all" id="select-all-flag" value="0"/>
+  <input type="hidden" name="include_catch_all" id="include-catch-all-flag" value="0"/>
   <input type="hidden" name="search" value="{{ search }}"/>
   <input type="hidden" name="status" value="{{ status_filter }}"/>
   <input type="hidden" name="investor_type" value="{{ investor_type_filter }}"/>
@@ -444,6 +445,11 @@
             <option value="{{ c.id }}" data-name="{{ c.name }}">{{ c.name }} ({{ c.id }})</option>
             {% endfor %}
           </select>
+          <label class="flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none">
+            <input type="checkbox" id="include-catch-all" name="include_catch_all" value="1"
+                   class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+            Include catch-all
+          </label>
           <button type="button" onclick="submitBulkEnroll()"
                   class="rounded-lg bg-indigo-600 text-white px-5 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
             Enroll Selected
@@ -627,8 +633,11 @@
   function submitBulkEnroll() {
     const campaignId = document.getElementById('bulk-campaign').value;
     if (!campaignId) { alert('Please select a campaign.'); return; }
+    const includeCatchAll = document.getElementById('include-catch-all').checked;
+    document.getElementById('include-catch-all-flag').value = includeCatchAll ? '1' : '0';
     const count = _selectedCount();
-    if (!confirm('Enroll ' + count + ' prospect(s) in the selected campaign?')) return;
+    const catchAllNote = includeCatchAll ? ' (including catch-all emails)' : '';
+    if (!confirm('Enroll ' + count + ' prospect(s) in the selected campaign' + catchAllNote + '?')) return;
     _showProgress(
       'Enrolling ' + count + ' prospect' + (count !== 1 ? 's' : '') + '…',
       'Sending to Smartlead — this may take a moment.'
