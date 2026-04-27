@@ -6,6 +6,7 @@
 
 {# ── Flash banners ── #}
 {% set _enrolled = request.query_params.get('bulk_enrolled') %}
+{% set _enroll_queued = request.query_params.get('enroll_queued') %}
 {% set _added    = request.query_params.get('added') %}
 {% set _intro    = request.query_params.get('batch_intro') %}
 {% set _validated = request.query_params.get('bulk_validated') %}
@@ -27,6 +28,13 @@
 <div data-flash class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
   <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
   <span class="text-sm font-medium text-green-800">{{ _enrolled }} prospect{{ 's' if _enrolled != '1' else '' }} enrolled.{% if request.query_params.get('bulk_failed') %} {{ request.query_params.get('bulk_failed') }} failed — check logs.{% endif %}</span>
+  {{ dismiss_btn() }}
+</div>
+{% endif %}
+{% if _enroll_queued %}
+<div data-flash class="rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-blue-500 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/><path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
+  <span class="text-sm font-medium text-blue-800"><strong>{{ _enroll_queued }}</strong> prospect{{ 's' if _enroll_queued != '1' else '' }} queued for enrollment. Running in background — check Smartlead in a few minutes.</span>
   {{ dismiss_btn() }}
 </div>
 {% endif %}
@@ -302,7 +310,7 @@
   <input type="hidden" name="wealth_tier" value="{{ wealth_tier_filter }}"/>
   <input type="hidden" name="enrolled" value="{{ enrolled_filter }}"/>
   <input type="hidden" name="email_validation" value="{{ request.query_params.get('email_validation', '') }}"/>
-  <input type="hidden" name="campaign_id" value="{{ selected_campaign_id }}"/>
+  <input type="hidden" name="filter_campaign_id" value="{{ selected_campaign_id }}"/>
   <input type="hidden" name="intro" value="{{ intro_filter }}"/>
 
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -546,7 +554,7 @@
 <script>
   // Remove flash query params from URL so refreshing doesn't re-show banners
   (function() {
-    const flash = ['bulk_enrolled','bulk_failed','added','batch_intro','bulk_validated',
+    const flash = ['bulk_enrolled','bulk_failed','enroll_queued','added','batch_intro','bulk_validated',
                    'validate_queued','revalidate_started','bulk_validated_error',
                    'bulk_deleted','delete_error','count','revalidated'];
     const url = new URL(window.location.href);
@@ -639,8 +647,8 @@
     const catchAllNote = includeCatchAll ? ' (including catch-all emails)' : '';
     if (!confirm('Enroll ' + count + ' prospect(s) in the selected campaign' + catchAllNote + '?')) return;
     _showProgress(
-      'Enrolling ' + count + ' prospect' + (count !== 1 ? 's' : '') + '…',
-      'Sending to Smartlead — this may take a moment.'
+      'Queuing ' + count + ' prospect' + (count !== 1 ? 's' : '') + ' for enrollment…',
+      'Enrollment runs in the background — you\'ll see a confirmation when the page reloads.'
     );
     document.getElementById('bulk-form').setAttribute('action', '/dashboard/prospects/bulk-enroll');
     document.getElementById('bulk-form').submit();

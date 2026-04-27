@@ -20,7 +20,7 @@ celery_app = Celery(
     broker=settings.redis_url,
     # No result backend — all tasks are fire-and-forget scheduled jobs.
     # Storing results in Redis was the primary cause of hitting Upstash request limits.
-    include=["app.tasks.high_intent", "app.tasks.hubspot_sync", "app.tasks.email_validation", "app.tasks.category_sync"],
+    include=["app.tasks.high_intent", "app.tasks.hubspot_sync", "app.tasks.email_validation", "app.tasks.category_sync", "app.tasks.enrollment"],
 )
 
 celery_app.conf.update(

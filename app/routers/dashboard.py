@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.config import settings
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, text
+from sqlalchemy import func, or_, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -452,113 +452,78 @@ def prospect_bulk_enroll(
     campaign_id: str = Form(...),
     campaign_name: str = Form(""),
     include_catch_all: str = Form("0"),
+    search: Optional[str] = Form(None),
+    status: Optional[str] = Form(None),
+    investor_type: Optional[str] = Form(None),
+    wealth_tier: Optional[str] = Form(None),
+    enrolled: Optional[str] = Form(None),
+    email_validation: Optional[str] = Form(None),
+    filter_campaign_id: Optional[str] = Form(None),
+    intro: Optional[str] = Form(None),
 ):
+    from app.worker import celery_app
+
     if not campaign_id:
         return RedirectResponse(url="/dashboard/prospects?bulk_error=missing_fields", status_code=303)
 
     if select_all == "1":
-        prospects = db.query(Prospect).all()
+        q = db.query(Prospect.id)
+        if search:
+            q = q.filter(or_(
+                Prospect.email.ilike(f"%{search}%"),
+                Prospect.first_name.ilike(f"%{search}%"),
+                Prospect.last_name.ilike(f"%{search}%"),
+                Prospect.company.ilike(f"%{search}%"),
+            ))
+        if status:
+            q = q.filter(Prospect.id.in_(
+                db.query(SequenceEnrollment.prospect_id).filter(SequenceEnrollment.status == status)
+            ))
+        if investor_type:
+            q = q.filter(Prospect.investor_type == investor_type)
+        if wealth_tier:
+            q = q.filter(Prospect.wealth_tier == wealth_tier)
+        if enrolled == "yes":
+            q = q.filter(Prospect.id.in_(
+                db.query(SequenceEnrollment.prospect_id).distinct()
+            ))
+        elif enrolled == "no":
+            q = q.filter(~Prospect.id.in_(
+                db.query(SequenceEnrollment.prospect_id).distinct()
+            ))
+        if email_validation == "none":
+            q = q.filter(Prospect.email_validation_status.is_(None))
+        elif email_validation:
+            q = q.filter(Prospect.email_validation_status == email_validation)
+        if filter_campaign_id:
+            q = q.filter(Prospect.id.in_(
+                db.query(SequenceEnrollment.prospect_id).filter(
+                    SequenceEnrollment.smartlead_campaign_id == filter_campaign_id
+                )
+            ))
+        if intro == "has":
+            q = q.filter(Prospect.personalized_intro.isnot(None))
+        elif intro == "missing":
+            q = q.filter(Prospect.personalized_intro.is_(None))
+        ids = [str(row.id) for row in q.all()]
     elif prospect_ids:
-        prospects = db.query(Prospect).filter(Prospect.id.in_(prospect_ids)).all()
+        ids = prospect_ids
     else:
         return RedirectResponse(url="/dashboard/prospects?bulk_error=missing_fields", status_code=303)
 
-    failed = []
-    allowed_statuses = ("valid", "catch-all") if include_catch_all == "1" else ("valid",)
+    if not ids:
+        return RedirectResponse(url="/dashboard/prospects?bulk_enrolled=0", status_code=303)
 
-    # Filter: invalid email status
-    enrollable = []
-    skipped_by_status: dict[str, int] = {}
-    for prospect in prospects:
-        if prospect.email_validation_status not in allowed_statuses:
-            label = prospect.email_validation_status or "not validated"
-            skipped_by_status[label] = skipped_by_status.get(label, 0) + 1
-            failed.append(f"{prospect.email} (email {label})")
-        else:
-            enrollable.append(prospect)
-    if skipped_by_status:
-        logger.info("Bulk enroll skipped by email status: %s", skipped_by_status)
+    celery_app.send_task(
+        "app.tasks.enrollment.bulk_enroll_campaign",
+        args=[ids, int(campaign_id), campaign_name or "", include_catch_all == "1"],
+    )
+    logger.info("Bulk enroll queued: %d prospects → campaign %s", len(ids), campaign_id)
 
-    if not enrollable:
-        db.commit()
-        msg = f"bulk_enrolled=0&bulk_failed={len(failed)}"
-        return RedirectResponse(url=f"/dashboard/prospects?{msg}", status_code=303)
-
-    # One paginated fetch of already-enrolled emails from Smartlead (replaces per-prospect API checks)
-    try:
-        smartlead_emails = smartlead.get_all_campaign_lead_emails(int(campaign_id))
-    except Exception as e:
-        logger.warning("Could not fetch existing campaign leads from Smartlead: %s", e)
-        smartlead_emails = set()
-
-    # One DB query for prospects already active in this campaign
-    active_prospect_ids = {
-        str(row.prospect_id)
-        for row in db.query(SequenceEnrollment.prospect_id)
-        .filter(
-            SequenceEnrollment.smartlead_campaign_id == str(campaign_id),
-            SequenceEnrollment.status == "active",
-        )
-        .all()
-    }
-
-    # Filter duplicates
-    to_enroll = []
-    skipped_smartlead = 0
-    skipped_db = 0
-    for prospect in enrollable:
-        if prospect.email.lower() in smartlead_emails:
-            skipped_smartlead += 1
-            continue
-        if str(prospect.id) in active_prospect_ids:
-            skipped_db += 1
-            continue
-        to_enroll.append(prospect)
-    if skipped_smartlead or skipped_db:
-        logger.info("Bulk enroll duplicates skipped — Smartlead: %d, DB: %d", skipped_smartlead, skipped_db)
-
-    if not to_enroll:
-        msg = f"bulk_enrolled=0"
-        if failed:
-            msg += f"&bulk_failed={len(failed)}"
-        return RedirectResponse(url=f"/dashboard/prospects?{msg}", status_code=303)
-
-    # Generate missing intros (sequential — Claude needs individual context)
-    for prospect in to_enroll:
-        _ensure_personalized_intro(prospect, db)
-
-    # Build lead dicts and batch-enroll in one Smartlead call
-    lead_dicts = [
-        {
-            "email": p.email,
-            "first_name": p.first_name,
-            "last_name": p.last_name,
-            "custom_fields": _prospect_custom_fields(p),
-        }
-        for p in to_enroll
-    ]
-
-    enrolled_count = 0
-    try:
-        smartlead.enroll_prospects_batch(int(campaign_id), lead_dicts)
-        # Bulk-insert enrollment records
-        for prospect in to_enroll:
-            db.add(SequenceEnrollment(
-                prospect_id=prospect.id,
-                smartlead_campaign_id=str(campaign_id),
-                campaign_name=campaign_name or None,
-                status="active",
-            ))
-        enrolled_count = len(to_enroll)
-    except Exception as e:
-        logger.error("Bulk enroll batch failed for campaign %s: %s", campaign_id, e)
-        failed.extend(p.email for p in to_enroll)
-
-    db.commit()
-    msg = f"bulk_enrolled={enrolled_count}"
-    if failed:
-        msg += f"&bulk_failed={len(failed)}"
-    return RedirectResponse(url=f"/dashboard/prospects?{msg}", status_code=303)
+    return RedirectResponse(
+        url=f"/dashboard/prospects?enroll_queued={len(ids)}",
+        status_code=303,
+    )
 
 
 # ---------------------------------------------------------------------------
