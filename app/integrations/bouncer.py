@@ -7,11 +7,12 @@ Endpoint: POST https://api.usebouncer.com/v1.1/email/verify/batch/sync
   - Max 10,000 emails per request
   - Auth: x-api-key header
 
-Status mapping to our internal values:
-  deliverable   → valid
-  undeliverable → invalid
-  risky         → invalid  (low quality / catch-all — blocked from enrollment)
-  unknown       → unknown
+Status mapping to our internal values (uses status + toxicity score):
+  deliverable + toxicity 0–5  → valid
+  deliverable + toxicity > 5  → catch-all  (deliverable but risky sender reputation)
+  risky                       → catch-all  (catch-all domain, may or may not deliver)
+  undeliverable               → invalid
+  unknown                     → unknown
 
 Usage:
   - Single email or tiny list  → validate_batch(emails)
@@ -80,10 +81,13 @@ def validate_batch(emails: list[str]) -> dict[str, str]:
     for item in data:
         email = (item.get("email") or "").strip().lower()
         raw_status = (item.get("status") or "unknown").lower()
+        toxicity = int(item.get("toxicity") or 0)
 
         if raw_status == "deliverable":
-            status = "valid"
-        elif raw_status in ("undeliverable", "risky"):
+            status = "valid" if toxicity <= 5 else "catch-all"
+        elif raw_status == "risky":
+            status = "catch-all"
+        elif raw_status == "undeliverable":
             status = "invalid"
         else:
             status = "unknown"
