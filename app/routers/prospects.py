@@ -218,6 +218,18 @@ def enroll_prospect(
     }.items() if v}
     merged_custom_fields = {**(body.custom_fields or {}), **auto_fields}
 
+    already_enrolled = (
+        db.query(SequenceEnrollment)
+        .filter(
+            SequenceEnrollment.prospect_id == prospect.id,
+            SequenceEnrollment.smartlead_campaign_id == str(body.campaign_id),
+            SequenceEnrollment.status == "active",
+        )
+        .first()
+    )
+    if already_enrolled:
+        raise HTTPException(status_code=409, detail="Prospect is already actively enrolled in that campaign")
+
     try:
         result = smartlead.enroll_prospect(
             campaign_id=body.campaign_id,
