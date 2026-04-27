@@ -468,15 +468,16 @@ def prospect_bulk_enroll(
 
     # Filter: invalid email status
     enrollable = []
+    skipped_by_status: dict[str, int] = {}
     for prospect in prospects:
         if prospect.email_validation_status not in allowed_statuses:
-            logger.warning(
-                "Bulk enroll skipped %s — email status: %s",
-                prospect.email, prospect.email_validation_status or "not validated",
-            )
-            failed.append(f"{prospect.email} (email {prospect.email_validation_status or 'not validated'})")
+            label = prospect.email_validation_status or "not validated"
+            skipped_by_status[label] = skipped_by_status.get(label, 0) + 1
+            failed.append(f"{prospect.email} (email {label})")
         else:
             enrollable.append(prospect)
+    if skipped_by_status:
+        logger.info("Bulk enroll skipped by email status: %s", skipped_by_status)
 
     if not enrollable:
         db.commit()
@@ -503,14 +504,18 @@ def prospect_bulk_enroll(
 
     # Filter duplicates
     to_enroll = []
+    skipped_smartlead = 0
+    skipped_db = 0
     for prospect in enrollable:
         if prospect.email.lower() in smartlead_emails:
-            logger.info("Bulk enroll skipped %s — already in Smartlead campaign %s", prospect.email, campaign_id)
+            skipped_smartlead += 1
             continue
         if str(prospect.id) in active_prospect_ids:
-            logger.info("Bulk enroll skipped %s — already active in DB for campaign %s", prospect.email, campaign_id)
+            skipped_db += 1
             continue
         to_enroll.append(prospect)
+    if skipped_smartlead or skipped_db:
+        logger.info("Bulk enroll duplicates skipped — Smartlead: %d, DB: %d", skipped_smartlead, skipped_db)
 
     if not to_enroll:
         msg = f"bulk_enrolled=0"
