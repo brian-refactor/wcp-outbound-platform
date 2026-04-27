@@ -445,6 +445,9 @@
 {% if investor_type_filter %}{% set _ = qs_parts.append('investor_type=' ~ investor_type_filter) %}{% endif %}
 {% if wealth_tier_filter %}{% set _ = qs_parts.append('wealth_tier=' ~ wealth_tier_filter) %}{% endif %}
 {% if enrolled_filter %}{% set _ = qs_parts.append('enrolled=' ~ enrolled_filter) %}{% endif %}
+{% if request.query_params.get('email_validation') %}{% set _ = qs_parts.append('email_validation=' ~ request.query_params.get('email_validation')) %}{% endif %}
+{% if selected_campaign_id %}{% set _ = qs_parts.append('campaign_id=' ~ selected_campaign_id) %}{% endif %}
+{% if intro_filter %}{% set _ = qs_parts.append('intro=' ~ intro_filter) %}{% endif %}
 {% set qs = qs_parts | join('&') %}
 
 {% if total_pages > 1 %}
