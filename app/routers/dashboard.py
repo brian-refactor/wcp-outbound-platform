@@ -465,7 +465,7 @@ def prospect_bulk_enroll(
     failed = []
 
     for prospect in prospects:
-        if prospect.email_validation_status != "valid":
+        if prospect.email_validation_status not in ("valid", "catch-all"):
             logger.warning(
                 "Bulk enroll skipped %s — email status: %s",
                 prospect.email, prospect.email_validation_status or "not validated",
@@ -727,11 +727,11 @@ def prospect_new_submit(
 
     # Optional enrollment
     if campaign_id and campaign_id.strip():
-        if prospect.email_validation_status != "valid":
+        if prospect.email_validation_status not in ("valid", "catch-all"):
             status_label = prospect.email_validation_status or "not validated"
             return render_error(
                 f"Prospect added, but cannot enroll — email validated as '{status_label}'. "
-                "Only valid emails can be enrolled."
+                "Only valid and catch-all emails can be enrolled."
             )
         try:
             _ensure_personalized_intro(prospect, db)
@@ -1508,7 +1508,7 @@ def prospect_edit_submit(
             return render_error("Prospect is already actively enrolled in that campaign.")
 
         # Validate email if not already validated
-        if prospect.email_validation_status != "valid":
+        if prospect.email_validation_status not in ("valid", "catch-all"):
             try:
                 results = bouncer.validate_batch([prospect.email])
                 validation_status = results.get(prospect.email)
@@ -1520,11 +1520,11 @@ def prospect_edit_submit(
             except Exception as e:
                 logger.warning("Bouncer validation failed for %s: %s", prospect.email, e)
 
-        if prospect.email_validation_status != "valid":
+        if prospect.email_validation_status not in ("valid", "catch-all"):
             status_label = prospect.email_validation_status or "not validated"
             return render_error(
                 f"Cannot enroll — email validated as '{status_label}'. "
-                "Only valid emails can be enrolled."
+                "Only valid and catch-all emails can be enrolled."
             )
 
         try:

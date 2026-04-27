@@ -300,7 +300,7 @@ id, name, category (outreach/crm/enrichment/ai/validation/hosting/infrastructure
 
 ## Enrollment Rules
 
-1. `email_validation_status` must equal `"valid"` — null, unknown, catch-all, and invalid are all blocked.
+1. `email_validation_status` must be `"valid"` or `"catch-all"` — null, unknown, and invalid are blocked.
 2. `personalized_intro` is generated (Claude or fallback) at enrollment time if not already set.
 3. Bulk enroll skips prospects already `active` in the target campaign (duplicate prevention).
 4. On **reply** or **sequence complete** event → enrollment `status = "completed"`.
