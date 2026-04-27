@@ -12,9 +12,18 @@ Status mapping to our internal values:
   undeliverable → invalid
   risky         → invalid  (low quality / catch-all — blocked from enrollment)
   unknown       → unknown
+
+Usage:
+  - Single email or tiny list  → validate_batch(emails)
+  - Any bulk operation          → validate_all(emails)
+    validate_all splits into SMALL_BATCH_SIZE chunks with a 1s delay between
+    requests so Bouncer has enough time to verify each address accurately.
+    Sending large batches in one request causes Bouncer to return 'unknown'
+    for addresses it can't check within its internal timeout.
 """
 
 import logging
+import time
 
 import httpx
 
@@ -25,6 +34,7 @@ logger = logging.getLogger(__name__)
 BATCH_URL = "https://api.usebouncer.com/v1.1/email/verify/batch/sync"
 CREDITS_URL = "https://api.usebouncer.com/v1.1/credits"
 MAX_BATCH = 10_000
+SMALL_BATCH_SIZE = 20
 
 
 def get_credits() -> int:
@@ -82,4 +92,20 @@ def validate_batch(emails: list[str]) -> dict[str, str]:
             results[email] = status
 
     logger.info("Bouncer validated %d emails", len(results))
+    return results
+
+
+def validate_all(emails: list[str]) -> dict[str, str]:
+    """
+    Validate any number of emails using small batches with a delay between
+    requests. Use this for all bulk operations.
+    """
+    if not emails:
+        return {}
+    results: dict[str, str] = {}
+    for i in range(0, len(emails), SMALL_BATCH_SIZE):
+        batch = emails[i:i + SMALL_BATCH_SIZE]
+        results.update(validate_batch(batch))
+        if i + SMALL_BATCH_SIZE < len(emails):
+            time.sleep(1)
     return results

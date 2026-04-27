@@ -1,16 +1,16 @@
 """
 Email validation tasks.
 
-validate_emails — runs every 30 minutes via Celery beat. Picks up prospects
-with no email_validation_status (NULL) and validates in batches via Bouncer.
+All bulk validation uses bouncer.validate_all() — 20 emails per Bouncer
+request with a 1s delay between batches — so Bouncer has enough time to
+verify each address and doesn't return 'unknown' due to internal timeouts.
 
-revalidate_unknown_emails — triggered on-demand from the dashboard. Picks up
-all prospects with email_validation_status = 'unknown' and re-verifies them
-using small batches so Bouncer has enough time per address.
+validate_emails            — scheduled every 30 min, picks up NULL-status prospects
+revalidate_unknown_emails  — on-demand, picks up 'unknown'-status prospects
+validate_selected_emails   — on-demand, validates a specific list of prospect IDs
 """
 
 import logging
-import time
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -20,14 +20,13 @@ from app.worker import celery_app
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 200
-REVALIDATE_BATCH_SIZE = 20  # Small batches give Bouncer time to verify each address
 
 
 @celery_app.task(name="app.tasks.email_validation.validate_emails")
 def validate_emails():
     from app.config import settings
     from app.database import SessionLocal
-    from app.integrations.bouncer import validate_batch
+    from app.integrations.bouncer import validate_all
     from app.models.prospect import Prospect
 
     if not settings.bouncer_api_key:
@@ -51,24 +50,18 @@ def validate_emails():
             logger.info("Email validation: no unvalidated prospects")
             return {"validated": 0}
 
+        emails = [p.email for p in prospects]
+        results = validate_all(emails)
+
         now = datetime.now(timezone.utc)
-        validated = 0
+        for prospect in prospects:
+            status = results.get(prospect.email.lower())
+            prospect.email_validation_status = status if status else "unknown"
+            prospect.email_validated_at = now
 
-        for i in range(0, len(prospects), REVALIDATE_BATCH_SIZE):
-            batch = prospects[i:i + REVALIDATE_BATCH_SIZE]
-            emails = [p.email for p in batch]
-            results = validate_batch(emails)
-            for prospect in batch:
-                status = results.get(prospect.email.lower())
-                prospect.email_validation_status = status if status else "unknown"
-                prospect.email_validated_at = now
-                validated += 1
-            db.commit()
-            if i + REVALIDATE_BATCH_SIZE < len(prospects):
-                time.sleep(1)
-
-        logger.info("Email validation complete: %d prospects validated", validated)
-        return {"validated": validated}
+        db.commit()
+        logger.info("Email validation complete: %d prospects validated", len(prospects))
+        return {"validated": len(prospects)}
 
     except Exception as e:
         db.rollback()
@@ -82,7 +75,7 @@ def validate_emails():
 def revalidate_unknown_emails():
     from app.config import settings
     from app.database import SessionLocal
-    from app.integrations.bouncer import validate_batch
+    from app.integrations.bouncer import validate_all
     from app.models.prospect import Prospect
 
     if not settings.bouncer_api_key:
@@ -106,28 +99,67 @@ def revalidate_unknown_emails():
             return {"revalidated": 0}
 
         logger.info("Revalidation starting: %d unknown prospects", len(prospects))
+        emails = [p.email for p in prospects]
+        results = validate_all(emails)
+
         now = datetime.now(timezone.utc)
-        revalidated = 0
+        for prospect in prospects:
+            status = results.get(prospect.email.lower())
+            prospect.email_validation_status = status if status else "unknown"
+            prospect.email_validated_at = now
 
-        for i in range(0, len(prospects), REVALIDATE_BATCH_SIZE):
-            batch = prospects[i:i + REVALIDATE_BATCH_SIZE]
-            emails = [p.email for p in batch]
-            results = validate_batch(emails)
-            for prospect in batch:
-                status = results.get(prospect.email.lower())
-                prospect.email_validation_status = status if status else "unknown"
-                prospect.email_validated_at = now
-                revalidated += 1
-            db.commit()
-            if i + REVALIDATE_BATCH_SIZE < len(prospects):
-                time.sleep(1)
-
-        logger.info("Revalidation complete: %d prospects processed", revalidated)
-        return {"revalidated": revalidated}
+        db.commit()
+        logger.info("Revalidation complete: %d prospects processed", len(prospects))
+        return {"revalidated": len(prospects)}
 
     except Exception as e:
         db.rollback()
         logger.error("Revalidation task failed: %s", e)
+        raise
+    finally:
+        db.close()
+
+
+@celery_app.task(name="app.tasks.email_validation.validate_selected_emails")
+def validate_selected_emails(prospect_ids: list[str]):
+    from app.config import settings
+    from app.database import SessionLocal
+    from app.integrations.bouncer import validate_all
+    from app.models.prospect import Prospect
+
+    if not settings.bouncer_api_key:
+        logger.info("Validation skipped: BOUNCER_API_KEY not set")
+        return {"validated": 0}
+
+    db = SessionLocal()
+    try:
+        prospects = (
+            db.execute(
+                select(Prospect).where(Prospect.id.in_(prospect_ids))
+            )
+            .scalars()
+            .all()
+        )
+
+        if not prospects:
+            return {"validated": 0}
+
+        emails = [p.email for p in prospects]
+        results = validate_all(emails)
+
+        now = datetime.now(timezone.utc)
+        for prospect in prospects:
+            status = results.get(prospect.email.lower())
+            prospect.email_validation_status = status if status else "unknown"
+            prospect.email_validated_at = now
+
+        db.commit()
+        logger.info("Selected validation complete: %d prospects", len(prospects))
+        return {"validated": len(prospects)}
+
+    except Exception as e:
+        db.rollback()
+        logger.error("Selected email validation failed: %s", e)
         raise
     finally:
         db.close()

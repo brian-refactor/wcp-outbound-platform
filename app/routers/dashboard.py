@@ -497,40 +497,20 @@ def bulk_validate_emails(
     select_all: str = Form("0"),
     db: Session = Depends(get_db),
 ):
-    from datetime import datetime, timezone
-    from app.integrations.bouncer import validate_batch
+    from app.worker import celery_app as _celery
 
     if select_all == "1":
-        prospects = db.query(Prospect).all()
+        ids = [str(p.id) for p in db.query(Prospect.id).all()]
     elif prospect_ids:
-        prospects = db.query(Prospect).filter(Prospect.id.in_(prospect_ids)).all()
+        ids = list(prospect_ids)
     else:
         return RedirectResponse(url="/dashboard/prospects", status_code=303)
 
-    now = datetime.now(timezone.utc)
-    validated = 0
-    BATCH_SIZE = 200
-
-    try:
-        for i in range(0, len(prospects), BATCH_SIZE):
-            batch = prospects[i:i + BATCH_SIZE]
-            emails = [p.email for p in batch]
-            results = validate_batch(emails)
-            for prospect in batch:
-                status = results.get(prospect.email.lower())
-                prospect.email_validation_status = status if status else "unknown"
-                prospect.email_validated_at = now
-                validated += 1
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        logger.error("Bulk email validation failed: %s", e)
-        return RedirectResponse(url="/dashboard/prospects?bulk_validated_error=1", status_code=303)
-
-    return RedirectResponse(
-        url=f"/dashboard/prospects?bulk_validated={validated}",
-        status_code=303,
+    _celery.send_task(
+        "app.tasks.email_validation.validate_selected_emails",
+        kwargs={"prospect_ids": ids},
     )
+    return RedirectResponse(url="/dashboard/prospects?revalidate_started=1", status_code=303)
 
 
 # ---------------------------------------------------------------------------
@@ -779,7 +759,6 @@ async def hubspot_import_preview(
     import base64
     import json as _json2
     from app.integrations import hubspot as hubspot_client
-    from app.integrations.bouncer import validate_batch
 
     form = await request.form()
     list_id   = (form.get("list_id") or "").strip()
@@ -814,13 +793,12 @@ async def hubspot_import_preview(
     new_contacts = [c for c in contacts if c["email"] not in existing_emails]
     duplicate_count = len(contacts) - len(new_contacts)
 
-    # Bouncer validation — run in batches of 200
     validated: dict[str, str] = {}
     if new_contacts and settings.bouncer_api_key:
         new_emails = [c["email"] for c in new_contacts]
         try:
-            for i in range(0, len(new_emails), 200):
-                validated.update(validate_batch(new_emails[i : i + 200]))
+            from app.integrations.bouncer import validate_all
+            validated = validate_all(new_emails)
         except Exception as exc:
             logger.warning("Bouncer validation failed during HubSpot import: %s", exc)
 
@@ -2385,12 +2363,11 @@ def leads_batch_confirm(
             "geography": (geography[idx].strip() or None) if idx < len(geography) else None,
         })
 
-    # Batch validate all real emails in one Bouncer call
     real_emails = [r["email"] for r in to_save if "@apollo.placeholder" not in r["email"]]
     zb_results: dict = {}
     if real_emails:
         try:
-            zb_results = bouncer.validate_batch(real_emails)
+            zb_results = bouncer.validate_all(real_emails)
         except Exception as e:
             logger.warning("Bouncer batch validation failed: %s", e)
 
