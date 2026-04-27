@@ -171,9 +171,11 @@ def zb_credits_fragment(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/fragments/revalidate-status", response_class=HTMLResponse)
 def revalidate_status_fragment(request: Request, db: Session = Depends(get_db)):
+    from datetime import datetime, timezone
     count = db.execute(
         text("SELECT COUNT(*) FROM prospects WHERE email_validation_status = 'unknown'")
     ).scalar() or 0
+    checked = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
 
     if count == 0:
         return HTMLResponse(
@@ -195,7 +197,8 @@ def revalidate_status_fragment(request: Request, db: Session = Depends(get_db)):
         '<circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>'
         '<path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>'
         "</svg>"
-        f'<span class="text-sm font-medium text-blue-800">Revalidation in progress — <strong>{count}</strong> unknown emails remaining. Updating every 10s…</span>'
+        f'<span class="text-sm font-medium text-blue-800">Revalidation in progress — <strong>{count}</strong> unknown emails remaining. '
+        f'<span class="font-normal text-blue-600">Last checked {checked}</span></span>'
         "</div>"
     )
 
