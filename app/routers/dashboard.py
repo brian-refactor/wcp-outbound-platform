@@ -177,18 +177,27 @@ def revalidate_status_fragment(request: Request, db: Session = Depends(get_db)):
     ).scalar() or 0
     checked = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
 
+    dismiss = (
+        '<button type="button" onclick="this.closest(\'[data-flash]\').remove()"'
+        ' class="ml-auto text-gray-400 hover:text-gray-600 shrink-0">'
+        '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">'
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>'
+        "</svg></button>"
+    )
+
     if count == 0:
         return HTMLResponse(
-            '<div id="revalidate-status" class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">'
+            '<div id="revalidate-status" data-flash class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">'
             '<svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">'
             '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>'
             "</svg>"
             '<span class="text-sm font-medium text-green-800">Revalidation complete — all unknown emails have been processed.</span>'
+            + dismiss +
             "</div>"
         )
 
     return HTMLResponse(
-        '<div id="revalidate-status"'
+        '<div id="revalidate-status" data-flash'
         ' hx-get="/dashboard/fragments/revalidate-status"'
         ' hx-trigger="every 10s"'
         ' hx-swap="outerHTML"'
@@ -199,6 +208,7 @@ def revalidate_status_fragment(request: Request, db: Session = Depends(get_db)):
         "</svg>"
         f'<span class="text-sm font-medium text-blue-800">Revalidation in progress — <strong>{count}</strong> unknown emails remaining. '
         f'<span class="font-normal text-blue-600">Last checked {checked}</span></span>'
+        + dismiss +
         "</div>"
     )
 

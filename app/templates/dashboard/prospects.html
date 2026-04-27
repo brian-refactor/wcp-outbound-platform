@@ -4,118 +4,97 @@
 
 {% block content %}
 
-{# ── Bulk enroll result banners ── #}
-{% if request.query_params.get('bulk_enrolled') %}
-<div class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
-  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-  </svg>
-  <span class="text-sm font-medium text-green-800">
-    {{ request.query_params.get('bulk_enrolled') }} prospect{{ 's' if request.query_params.get('bulk_enrolled') != '1' else '' }} enrolled.
-    {% if request.query_params.get('bulk_failed') %}
-      {{ request.query_params.get('bulk_failed') }} failed — check logs.
-    {% endif %}
-  </span>
-</div>
-{% endif %}
+{# ── Flash banners ── #}
+{% set _enrolled = request.query_params.get('bulk_enrolled') %}
+{% set _added    = request.query_params.get('added') %}
+{% set _intro    = request.query_params.get('batch_intro') %}
+{% set _validated = request.query_params.get('bulk_validated') %}
+{% set _queued   = request.query_params.get('validate_queued') %}
+{% set _started  = request.query_params.get('revalidate_started') %}
+{% set _valerr   = request.query_params.get('bulk_validated_error') %}
+{% set _deleted  = request.query_params.get('bulk_deleted') %}
+{% set _delerr   = request.query_params.get('delete_error') %}
 
-{# ── Batch add from Lead Finder banner ── #}
-{% if request.query_params.get('added') %}
-<div class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
-  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+{% macro dismiss_btn() %}
+<button type="button" onclick="this.closest('[data-flash]').remove()" class="ml-auto text-gray-400 hover:text-gray-600 shrink-0">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
   </svg>
-  <span class="text-sm font-medium text-green-800">
-    Added {{ request.query_params.get('added') }} prospect{{ 's' if request.query_params.get('added') != '1' else '' }} from Lead Finder.
-  </span>
-</div>
-{% endif %}
+</button>
+{% endmacro %}
 
-{# ── Batch intro result banner ── #}
-{% if request.query_params.get('batch_intro') %}
-<div class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
-  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-  </svg>
-  <span class="text-sm font-medium text-green-800">
-    Generated personalized intros for {{ request.query_params.get('batch_intro') }} prospect{{ 's' if request.query_params.get('batch_intro') != '1' else '' }}.
-  </span>
+{% if _enrolled %}
+<div data-flash class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+  <span class="text-sm font-medium text-green-800">{{ _enrolled }} prospect{{ 's' if _enrolled != '1' else '' }} enrolled.{% if request.query_params.get('bulk_failed') %} {{ request.query_params.get('bulk_failed') }} failed — check logs.{% endif %}</span>
+  {{ dismiss_btn() }}
 </div>
 {% endif %}
-
-{# ── Bulk validate result banner ── #}
-{% if request.query_params.get('bulk_validated') %}
-<div class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
-  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-  </svg>
-  <span class="text-sm font-medium text-green-800">
-    Validated emails for {{ request.query_params.get('bulk_validated') }} prospect{{ 's' if request.query_params.get('bulk_validated') != '1' else '' }} via Bouncer.
-  </span>
+{% if _added %}
+<div data-flash class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+  <span class="text-sm font-medium text-green-800">Added {{ _added }} prospect{{ 's' if _added != '1' else '' }} from Lead Finder.</span>
+  {{ dismiss_btn() }}
 </div>
 {% endif %}
-{% if request.query_params.get('validate_queued') %}
-<div class="rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 mb-5 flex items-center gap-3">
-  <svg class="w-4 h-4 text-blue-500 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
-    <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
-    <path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
-  </svg>
-  <span class="text-sm font-medium text-blue-800">
-    <strong>{{ request.query_params.get('validate_queued') }}</strong> email{{ 's' if request.query_params.get('validate_queued') != '1' else '' }} queued for validation in background. Refresh in a few minutes to see updated statuses.
-  </span>
+{% if _intro %}
+<div data-flash class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+  <span class="text-sm font-medium text-green-800">Generated personalized intros for {{ _intro }} prospect{{ 's' if _intro != '1' else '' }}.</span>
+  {{ dismiss_btn() }}
 </div>
 {% endif %}
-{% if request.query_params.get('revalidate_started') %}
-<div id="revalidate-status"
+{% if _validated %}
+<div data-flash class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+  <span class="text-sm font-medium text-green-800">Validated emails for {{ _validated }} prospect{{ 's' if _validated != '1' else '' }} via Bouncer.</span>
+  {{ dismiss_btn() }}
+</div>
+{% endif %}
+{% if _queued %}
+<div data-flash class="rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-blue-500 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/><path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
+  <span class="text-sm font-medium text-blue-800"><strong>{{ _queued }}</strong> email{{ 's' if _queued != '1' else '' }} queued for validation in background. Refresh in a few minutes to see updated statuses.</span>
+  {{ dismiss_btn() }}
+</div>
+{% endif %}
+{% if _started %}
+<div id="revalidate-status" data-flash
      hx-get="/dashboard/fragments/revalidate-status"
      hx-trigger="load, every 10s"
      hx-swap="outerHTML"
      class="rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 mb-5 flex items-center gap-3">
-  <svg class="w-4 h-4 text-blue-500 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
-    <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
-    <path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
-  </svg>
+  <svg class="w-4 h-4 text-blue-500 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/><path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
   <span class="text-sm font-medium text-blue-800">Revalidation started — <strong>{{ unknown_email_count }}</strong> unknown emails queued. Checking now…</span>
+  {{ dismiss_btn() }}
 </div>
 {% endif %}
-{% if request.query_params.get('bulk_validated_error') %}
-<div class="rounded-xl border border-red-200 bg-red-50 px-5 py-3 mb-5 flex items-center gap-3">
-  <svg class="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-  </svg>
+{% if _valerr %}
+<div data-flash class="rounded-xl border border-red-200 bg-red-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
   <span class="text-sm font-medium text-red-800">Email validation failed — check logs.</span>
+  {{ dismiss_btn() }}
 </div>
 {% endif %}
-
-{# ── Bulk delete result banner ── #}
-{% if request.query_params.get('bulk_deleted') %}
-<div class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
-  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-  </svg>
-  <span class="text-sm font-medium text-green-800">
-    Deleted {{ request.query_params.get('bulk_deleted') }} prospect{{ 's' if request.query_params.get('bulk_deleted') != '1' else '' }}.
-  </span>
+{% if _deleted %}
+<div data-flash class="rounded-xl border border-green-200 bg-green-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+  <span class="text-sm font-medium text-green-800">Deleted {{ _deleted }} prospect{{ 's' if _deleted != '1' else '' }}.</span>
+  {{ dismiss_btn() }}
 </div>
 {% endif %}
-{% if request.query_params.get('delete_error') == 'nofilter' %}
-<div class="rounded-xl border border-red-200 bg-red-50 px-5 py-3 mb-5 flex items-center gap-3">
-  <svg class="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-  </svg>
-  <span class="text-sm font-medium text-red-800">
-    Bulk delete requires at least one active filter when all pages are selected. Apply a filter (e.g. email status, investor type) and try again.
-  </span>
+{% if _delerr == 'nofilter' %}
+<div data-flash class="rounded-xl border border-red-200 bg-red-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  <span class="text-sm font-medium text-red-800">Bulk delete requires at least one active filter when all pages are selected. Apply a filter (e.g. email status, investor type) and try again.</span>
+  {{ dismiss_btn() }}
 </div>
 {% endif %}
-{% if request.query_params.get('delete_error') == 'toomany' %}
-<div class="rounded-xl border border-red-200 bg-red-50 px-5 py-3 mb-5 flex items-center gap-3">
-  <svg class="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-  </svg>
-  <span class="text-sm font-medium text-red-800">
-    Bulk delete is limited to 1,000 prospects at a time. Your selection matched {{ request.query_params.get('count') }} — narrow your filter and delete in batches.
-  </span>
+{% if _delerr == 'toomany' %}
+<div data-flash class="rounded-xl border border-red-200 bg-red-50 px-5 py-3 mb-5 flex items-center gap-3">
+  <svg class="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  <span class="text-sm font-medium text-red-800">Bulk delete is limited to 1,000 prospects at a time. Your selection matched {{ request.query_params.get('count') }} — narrow your filter and delete in batches.</span>
+  {{ dismiss_btn() }}
 </div>
 {% endif %}
 
@@ -510,6 +489,18 @@
 <style>
   #bulk-bar { transition: transform 0.2s ease; }
 </style>
+<script>
+  // Remove flash query params from URL so refreshing doesn't re-show banners
+  (function() {
+    const flash = ['bulk_enrolled','bulk_failed','added','batch_intro','bulk_validated',
+                   'validate_queued','revalidate_started','bulk_validated_error',
+                   'bulk_deleted','delete_error','count','revalidated'];
+    const url = new URL(window.location.href);
+    let changed = false;
+    flash.forEach(k => { if (url.searchParams.has(k)) { url.searchParams.delete(k); changed = true; } });
+    if (changed) history.replaceState(null, '', url.toString());
+  })();
+</script>
 
 <script>
   const PAGE_TOTAL = {{ total }};
