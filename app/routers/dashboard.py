@@ -510,7 +510,10 @@ def bulk_validate_emails(
         "app.tasks.email_validation.validate_selected_emails",
         kwargs={"prospect_ids": ids},
     )
-    return RedirectResponse(url="/dashboard/prospects?revalidate_started=1", status_code=303)
+    return RedirectResponse(
+        url=f"/dashboard/prospects?validate_queued={len(ids)}",
+        status_code=303,
+    )
 
 
 # ---------------------------------------------------------------------------
