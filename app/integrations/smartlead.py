@@ -25,6 +25,42 @@ def _client() -> httpx.Client:
     )
 
 
+def get_lead_by_email(email: str) -> Optional[dict]:
+    """Return the Smartlead lead record for an email, or None if not found."""
+    with _client() as client:
+        response = client.get("/leads", params={"email": email.strip().lower()})
+        if not response.is_success:
+            return None
+        data = response.json()
+        if isinstance(data, list):
+            return data[0] if data else None
+        return data if data else None
+
+
+def is_lead_in_campaign(email: str, campaign_id: int) -> bool:
+    """
+    Return True if email is already a lead in the campaign.
+    Fails open (returns False) on API errors so enrollment is never incorrectly blocked.
+    """
+    lead = get_lead_by_email(email)
+    if not lead:
+        return False
+    lead_id = lead.get("id")
+    if not lead_id:
+        return False
+    try:
+        with _client() as client:
+            response = client.get(f"/leads/{lead_id}/all-campaign")
+            if not response.is_success:
+                return False
+            campaigns = response.json()
+            if isinstance(campaigns, list):
+                return any(str(c.get("campaign_id", "")) == str(campaign_id) for c in campaigns)
+            return False
+    except Exception:
+        return False
+
+
 def enroll_prospect(
     campaign_id: int,
     email: str,
@@ -37,7 +73,11 @@ def enroll_prospect(
 
     Returns the Smartlead API response dict.
     Raises httpx.HTTPStatusError on API errors.
+    Raises ValueError if the lead is already enrolled in this campaign.
     """
+    if is_lead_in_campaign(email, campaign_id):
+        raise ValueError(f"{email} is already enrolled in campaign {campaign_id}")
+
     payload = {
         "lead_list": [
             {
