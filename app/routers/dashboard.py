@@ -368,9 +368,19 @@ def dashboard_prospects(
         text("SELECT COUNT(*) FROM prospects WHERE personalized_intro IS NULL")
     ).scalar() or 0
 
-    unknown_email_count = db.execute(
-        text("SELECT COUNT(*) FROM prospects WHERE email_validation_status = 'unknown'")
-    ).scalar() or 0
+    validation_counts = dict(
+        db.execute(
+            text("""
+                SELECT
+                  COALESCE(email_validation_status, 'none') AS status,
+                  COUNT(*) AS cnt
+                FROM prospects
+                GROUP BY COALESCE(email_validation_status, 'none')
+            """)
+        ).fetchall()
+    )
+    unknown_email_count = validation_counts.get("unknown", 0)
+    total_prospects_count = sum(validation_counts.values())
 
     return templates.TemplateResponse(
         "dashboard/prospects.html",
@@ -390,6 +400,8 @@ def dashboard_prospects(
             "selected_campaign_id": campaign_id or "",
             "intro_missing_count": intro_missing_count,
             "unknown_email_count": unknown_email_count,
+            "validation_counts": validation_counts,
+            "total_prospects_count": total_prospects_count,
             "active_page": "prospects",
         },
     )

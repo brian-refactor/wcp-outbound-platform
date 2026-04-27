@@ -98,6 +98,51 @@
 </div>
 {% endif %}
 
+{# ── Email validation summary cards ── #}
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+  {# Total #}
+  <a href="/dashboard/prospects"
+     class="rounded-xl border bg-white px-4 py-3 flex flex-col gap-1 hover:border-gray-400 transition-colors {% if not request.query_params.get('email_validation') %}ring-2 ring-indigo-400{% endif %}">
+    <span class="text-2xl font-bold text-gray-900">{{ total_prospects_count }}</span>
+    <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Total</span>
+  </a>
+  {# Valid #}
+  <a href="/dashboard/prospects?email_validation=valid"
+     class="rounded-xl border bg-white px-4 py-3 flex flex-col gap-1 hover:border-gray-400 transition-colors {% if request.query_params.get('email_validation') == 'valid' %}ring-2 ring-green-400{% endif %}">
+    <span class="text-2xl font-bold text-green-700">{{ validation_counts.get('valid', 0) }}</span>
+    <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Valid</span>
+    <span class="text-xs text-gray-400">{% if total_prospects_count %}{{ ((validation_counts.get('valid', 0) / total_prospects_count) * 100) | round(1) }}%{% endif %}</span>
+  </a>
+  {# Catch-All #}
+  <a href="/dashboard/prospects?email_validation=catch-all"
+     class="rounded-xl border bg-white px-4 py-3 flex flex-col gap-1 hover:border-gray-400 transition-colors {% if request.query_params.get('email_validation') == 'catch-all' %}ring-2 ring-yellow-400{% endif %}">
+    <span class="text-2xl font-bold text-yellow-600">{{ validation_counts.get('catch-all', 0) }}</span>
+    <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Catch-All</span>
+    <span class="text-xs text-gray-400">{% if total_prospects_count %}{{ ((validation_counts.get('catch-all', 0) / total_prospects_count) * 100) | round(1) }}%{% endif %}</span>
+  </a>
+  {# Unknown #}
+  <a href="/dashboard/prospects?email_validation=unknown"
+     class="rounded-xl border bg-white px-4 py-3 flex flex-col gap-1 hover:border-gray-400 transition-colors {% if request.query_params.get('email_validation') == 'unknown' %}ring-2 ring-amber-400{% endif %}">
+    <span class="text-2xl font-bold text-amber-600">{{ validation_counts.get('unknown', 0) }}</span>
+    <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Unknown</span>
+    <span class="text-xs text-gray-400">{% if total_prospects_count %}{{ ((validation_counts.get('unknown', 0) / total_prospects_count) * 100) | round(1) }}%{% endif %}</span>
+  </a>
+  {# Invalid #}
+  <a href="/dashboard/prospects?email_validation=invalid"
+     class="rounded-xl border bg-white px-4 py-3 flex flex-col gap-1 hover:border-gray-400 transition-colors {% if request.query_params.get('email_validation') == 'invalid' %}ring-2 ring-red-400{% endif %}">
+    <span class="text-2xl font-bold text-red-600">{{ validation_counts.get('invalid', 0) }}</span>
+    <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Invalid</span>
+    <span class="text-xs text-gray-400">{% if total_prospects_count %}{{ ((validation_counts.get('invalid', 0) / total_prospects_count) * 100) | round(1) }}%{% endif %}</span>
+  </a>
+  {# Not validated #}
+  <a href="/dashboard/prospects?email_validation=none"
+     class="rounded-xl border bg-white px-4 py-3 flex flex-col gap-1 hover:border-gray-400 transition-colors {% if request.query_params.get('email_validation') == 'none' %}ring-2 ring-gray-400{% endif %}">
+    <span class="text-2xl font-bold text-gray-500">{{ validation_counts.get('none', 0) }}</span>
+    <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Not Validated</span>
+    <span class="text-xs text-gray-400">{% if total_prospects_count %}{{ ((validation_counts.get('none', 0) / total_prospects_count) * 100) | round(1) }}%{% endif %}</span>
+  </a>
+</div>
+
 {# ── Action buttons ── #}
 <div class="flex items-center justify-between mb-5">
   <div class="flex gap-2">
