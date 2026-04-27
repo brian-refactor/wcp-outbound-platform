@@ -461,9 +461,11 @@ def prospect_bulk_enroll(
         prospects = db.query(Prospect).filter(Prospect.id.in_(prospect_ids)).all()
     else:
         return RedirectResponse(url="/dashboard/prospects?bulk_error=missing_fields", status_code=303)
-    enrolled_count = 0
+
     failed = []
 
+    # Filter: invalid email status
+    enrollable = []
     for prospect in prospects:
         if prospect.email_validation_status not in ("valid", "catch-all"):
             logger.warning(
@@ -471,38 +473,79 @@ def prospect_bulk_enroll(
                 prospect.email, prospect.email_validation_status or "not validated",
             )
             failed.append(f"{prospect.email} (email {prospect.email_validation_status or 'not validated'})")
-            continue
-        already_enrolled = (
-            db.query(SequenceEnrollment)
-            .filter(
-                SequenceEnrollment.prospect_id == prospect.id,
-                SequenceEnrollment.smartlead_campaign_id == str(campaign_id),
-                SequenceEnrollment.status == "active",
-            )
-            .first()
+        else:
+            enrollable.append(prospect)
+
+    if not enrollable:
+        db.commit()
+        msg = f"bulk_enrolled=0&bulk_failed={len(failed)}"
+        return RedirectResponse(url=f"/dashboard/prospects?{msg}", status_code=303)
+
+    # One paginated fetch of already-enrolled emails from Smartlead (replaces per-prospect API checks)
+    try:
+        smartlead_emails = smartlead.get_all_campaign_lead_emails(int(campaign_id))
+    except Exception as e:
+        logger.warning("Could not fetch existing campaign leads from Smartlead: %s", e)
+        smartlead_emails = set()
+
+    # One DB query for prospects already active in this campaign
+    active_prospect_ids = {
+        str(row.prospect_id)
+        for row in db.query(SequenceEnrollment.prospect_id)
+        .filter(
+            SequenceEnrollment.smartlead_campaign_id == str(campaign_id),
+            SequenceEnrollment.status == "active",
         )
-        if already_enrolled:
-            logger.info("Bulk enroll skipped %s — already active in campaign %s", prospect.email, campaign_id)
+        .all()
+    }
+
+    # Filter duplicates
+    to_enroll = []
+    for prospect in enrollable:
+        if prospect.email.lower() in smartlead_emails:
+            logger.info("Bulk enroll skipped %s — already in Smartlead campaign %s", prospect.email, campaign_id)
             continue
-        try:
-            _ensure_personalized_intro(prospect, db)
-            smartlead.enroll_prospect(
-                campaign_id=int(campaign_id),
-                email=prospect.email,
-                first_name=prospect.first_name,
-                last_name=prospect.last_name,
-                custom_fields=_prospect_custom_fields(prospect),
-            )
+        if str(prospect.id) in active_prospect_ids:
+            logger.info("Bulk enroll skipped %s — already active in DB for campaign %s", prospect.email, campaign_id)
+            continue
+        to_enroll.append(prospect)
+
+    if not to_enroll:
+        msg = f"bulk_enrolled=0"
+        if failed:
+            msg += f"&bulk_failed={len(failed)}"
+        return RedirectResponse(url=f"/dashboard/prospects?{msg}", status_code=303)
+
+    # Generate missing intros (sequential — Claude needs individual context)
+    for prospect in to_enroll:
+        _ensure_personalized_intro(prospect, db)
+
+    # Build lead dicts and batch-enroll in one Smartlead call
+    lead_dicts = [
+        {
+            "email": p.email,
+            "first_name": p.first_name,
+            "last_name": p.last_name,
+            "custom_fields": _prospect_custom_fields(p),
+        }
+        for p in to_enroll
+    ]
+
+    enrolled_count = 0
+    try:
+        smartlead.enroll_prospects_batch(int(campaign_id), lead_dicts)
+        # Bulk-insert enrollment records
+        for prospect in to_enroll:
             db.add(SequenceEnrollment(
                 prospect_id=prospect.id,
                 smartlead_campaign_id=str(campaign_id),
                 campaign_name=campaign_name or None,
                 status="active",
             ))
-            enrolled_count += 1
-        except Exception as e:
-            logger.error("Bulk enroll failed for %s: %s", prospect.email, e)
-            failed.append(prospect.email)
+        enrolled_count = len(to_enroll)
+    except Exception as e:
+        logger.error("Bulk enroll batch failed for campaign %s: %s", campaign_id, e)
+        failed.extend(p.email for p in to_enroll)
 
     db.commit()
     msg = f"bulk_enrolled={enrolled_count}"

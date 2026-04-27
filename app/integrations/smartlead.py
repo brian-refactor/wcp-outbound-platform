@@ -104,6 +104,77 @@ def enroll_prospect(
         return result
 
 
+def get_all_campaign_lead_emails(campaign_id: int) -> set[str]:
+    """
+    Return the lowercase email addresses of every lead already in the campaign.
+    Used by bulk enroll to filter duplicates in one paginated fetch instead of
+    checking each prospect individually.
+    """
+    emails: set[str] = set()
+    offset = 0
+    with _client() as client:
+        while True:
+            response = client.get(
+                f"/campaigns/{campaign_id}/leads",
+                params={"limit": 100, "offset": offset},
+            )
+            if not response.is_success:
+                logger.warning("Could not fetch campaign leads for dedup check: %s", response.status_code)
+                break
+            data = response.json()
+            leads = data.get("data", [])
+            for lead in leads:
+                email = (lead.get("lead") or {}).get("email", "").lower().strip()
+                if email:
+                    emails.add(email)
+            if len(leads) < 100:
+                break
+            offset += 100
+    logger.info("Fetched %d existing emails from campaign %s for dedup", len(emails), campaign_id)
+    return emails
+
+
+ENROLL_BATCH_SIZE = 100
+
+
+def enroll_prospects_batch(campaign_id: int, leads: list[dict]) -> list[dict]:
+    """
+    Enroll multiple leads in a single Smartlead API call.
+
+    Each item in `leads` should have: email, first_name, last_name, custom_fields (optional).
+    Sends in chunks of ENROLL_BATCH_SIZE. The caller must pre-filter duplicates.
+    Returns the list of Smartlead response dicts (one per chunk).
+    """
+    if not leads:
+        return []
+    responses = []
+    with _client() as client:
+        for i in range(0, len(leads), ENROLL_BATCH_SIZE):
+            chunk = leads[i:i + ENROLL_BATCH_SIZE]
+            payload = {
+                "lead_list": [
+                    {
+                        "email": lead["email"],
+                        "first_name": lead.get("first_name") or "",
+                        "last_name": lead.get("last_name") or "",
+                        **({"custom_fields": lead["custom_fields"]} if lead.get("custom_fields") else {}),
+                    }
+                    for lead in chunk
+                ]
+            }
+            response = client.post(f"/campaigns/{campaign_id}/leads", json=payload)
+            if not response.is_success:
+                logger.error(
+                    "Smartlead batch enrollment failed for campaign %s (chunk %d): %s — %s",
+                    campaign_id, i // ENROLL_BATCH_SIZE, response.status_code, response.text,
+                )
+            response.raise_for_status()
+            result = response.json()
+            logger.info("Batch enrolled %d leads in campaign %s: %s", len(chunk), campaign_id, result)
+            responses.append(result)
+    return responses
+
+
 def get_campaign_details(campaign_id: int) -> dict:
     """Fetch campaign details — useful for verifying a campaign ID is valid."""
     with _client() as client:
