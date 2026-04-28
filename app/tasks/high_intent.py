@@ -11,7 +11,7 @@ is configured on the enrollment, enrolls the prospect in that Smartlead campaign
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, text
 
 from app.worker import celery_app
 
@@ -31,43 +31,35 @@ def scan_high_intent():
     try:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
 
-        # Correlated subquery: this enrollment has at least one click older than 48h
-        has_old_click = (
-            select(EmailEvent.id)
-            .where(
-                and_(
-                    EmailEvent.enrollment_id == SequenceEnrollment.id,
-                    EmailEvent.event_type == "click",
-                    EmailEvent.occurred_at <= cutoff,
-                )
-            )
-            .correlate(SequenceEnrollment)
-            .exists()
-        )
-
-        # Correlated subquery: this enrollment has a reply
-        has_reply = (
-            select(EmailEvent.id)
-            .where(
-                and_(
-                    EmailEvent.enrollment_id == SequenceEnrollment.id,
-                    EmailEvent.event_type == "reply",
-                )
-            )
-            .correlate(SequenceEnrollment)
-            .exists()
-        )
+        # Real click: happened >= 15s after an open on the same enrollment.
+        # Clicks within 15s of the open are corporate security scanners, not humans.
+        candidate_ids = [
+            row[0]
+            for row in db.execute(text("""
+                SELECT se.id
+                FROM sequence_enrollments se
+                WHERE se.status = 'active'
+                  AND se.track = 'standard'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM email_events
+                      WHERE enrollment_id = se.id AND event_type = 'reply'
+                  )
+                  AND EXISTS (
+                      SELECT 1
+                      FROM email_events click
+                      JOIN email_events open_ ON open_.enrollment_id = click.enrollment_id
+                          AND open_.event_type = 'open'
+                      WHERE click.enrollment_id = se.id
+                        AND click.event_type = 'click'
+                        AND click.occurred_at <= :cutoff
+                        AND EXTRACT(EPOCH FROM (click.occurred_at - open_.occurred_at)) >= 15
+                  )
+            """), {"cutoff": cutoff}).fetchall()
+        ]
 
         candidates = (
             db.execute(
-                select(SequenceEnrollment).where(
-                    and_(
-                        SequenceEnrollment.status == "active",
-                        SequenceEnrollment.track == "standard",
-                        has_old_click,
-                        ~has_reply,
-                    )
-                )
+                select(SequenceEnrollment).where(SequenceEnrollment.id.in_(candidate_ids))
             )
             .scalars()
             .all()

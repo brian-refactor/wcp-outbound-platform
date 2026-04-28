@@ -1592,6 +1592,12 @@ def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
         JOIN sequence_enrollments se ON se.id = ee.enrollment_id
         WHERE ee.event_type = 'click'
           AND ee.clicked_url IS NOT NULL
+          AND EXISTS (
+              SELECT 1 FROM email_events oe
+              WHERE oe.enrollment_id = ee.enrollment_id
+                AND oe.event_type = 'open'
+                AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 15
+          )
         GROUP BY COALESCE(se.campaign_name, se.smartlead_campaign_id),
                  se.smartlead_campaign_id, ee.clicked_url
         ORDER BY campaign_name, unique_clickers DESC
@@ -1633,6 +1639,12 @@ def sequence_link_clicks(
         JOIN sequence_enrollments se ON se.id = ee.enrollment_id
         WHERE ee.event_type = 'click'
           AND se.smartlead_campaign_id = :campaign_id
+          AND EXISTS (
+              SELECT 1 FROM email_events oe
+              WHERE oe.enrollment_id = ee.enrollment_id
+                AND oe.event_type = 'open'
+                AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 15
+          )
     """
     params: dict = {"campaign_id": campaign_id}
     if url:

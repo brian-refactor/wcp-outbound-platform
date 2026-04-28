@@ -222,7 +222,11 @@ def sequences_by_type(db: Session = Depends(get_db), campaign_id: Optional[str] 
             COALESCE(se.campaign_name, se.smartlead_campaign_id) AS campaign_name,
             COUNT(DISTINCT se.id)                                                             AS enrolled,
             COUNT(CASE WHEN ee.event_type = 'open'         THEN ee.id END) AS opened,
-            COUNT(DISTINCT CASE WHEN ee.event_type = 'click'        THEN ee.prospect_id END) AS clicked,
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'click'
+                AND EXISTS (SELECT 1 FROM email_events oe WHERE oe.enrollment_id = ee.enrollment_id
+                    AND oe.event_type = 'open'
+                    AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 15)
+                THEN ee.prospect_id END)                                                      AS clicked,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'reply'        THEN ee.prospect_id END) AS replied,
             COUNT(DISTINCT CASE WHEN se.track = 'standard'          THEN se.id END)          AS standard_count,
             COUNT(DISTINCT CASE WHEN se.track = 'high_intent'       THEN se.id END)          AS high_intent_count
@@ -260,7 +264,11 @@ def campaigns_funnel(db: Session, campaign_id: Optional[str] = None) -> list[Cam
             COUNT(DISTINCT se.id)                                              AS enrolled,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'sent'  THEN ee.prospect_id END) AS sent,
             COUNT(CASE WHEN ee.event_type = 'open'  THEN ee.id END) AS opened,
-            COUNT(DISTINCT CASE WHEN ee.event_type = 'click' THEN ee.prospect_id END) AS clicked,
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'click'
+                AND EXISTS (SELECT 1 FROM email_events oe WHERE oe.enrollment_id = ee.enrollment_id
+                    AND oe.event_type = 'open'
+                    AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 15)
+                THEN ee.prospect_id END)                                                AS clicked,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN ee.prospect_id END) AS replied
         FROM sequence_enrollments se
         LEFT JOIN email_events ee ON ee.enrollment_id = se.id
@@ -294,7 +302,11 @@ def sequence_stats(db: Session = Depends(get_db)):
             se.track,
             COUNT(DISTINCT se.id)                                                          AS enrolled,
             COUNT(CASE WHEN ee.event_type = 'open'  THEN ee.id END)                       AS opened,
-            COUNT(DISTINCT CASE WHEN ee.event_type = 'click' THEN ee.prospect_id END)     AS clicked,
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'click'
+                AND EXISTS (SELECT 1 FROM email_events oe WHERE oe.enrollment_id = ee.enrollment_id
+                    AND oe.event_type = 'open'
+                    AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 15)
+                THEN ee.prospect_id END)                                                    AS clicked,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN ee.prospect_id END)     AS replied,
             COUNT(DISTINCT CASE WHEN se.status = 'bounced'   THEN se.id END)              AS bounced,
             COUNT(DISTINCT CASE WHEN se.status = 'opted_out' THEN se.id END)              AS opted_out
