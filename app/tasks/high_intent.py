@@ -31,7 +31,7 @@ def scan_high_intent():
     try:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
 
-        # Real click: happened >= 15s after an open on the same enrollment.
+        # Real click: happened >= 20s after an open on the same enrollment.
         # Clicks within 15s of the open are corporate security scanners, not humans.
         candidate_ids = [
             row[0]
@@ -52,7 +52,7 @@ def scan_high_intent():
                       WHERE click.enrollment_id = se.id
                         AND click.event_type = 'click'
                         AND click.occurred_at <= :cutoff
-                        AND EXTRACT(EPOCH FROM (click.occurred_at - open_.occurred_at)) >= 15
+                        AND EXTRACT(EPOCH FROM (click.occurred_at - open_.occurred_at)) >= 20
                   )
             """), {"cutoff": cutoff}).fetchall()
         ]

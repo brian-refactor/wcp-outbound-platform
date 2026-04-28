@@ -1596,7 +1596,7 @@ def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
               SELECT 1 FROM email_events oe
               WHERE oe.enrollment_id = ee.enrollment_id
                 AND oe.event_type = 'open'
-                AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 15
+                AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20
           )
         GROUP BY COALESCE(se.campaign_name, se.smartlead_campaign_id),
                  se.smartlead_campaign_id, ee.clicked_url
@@ -1643,7 +1643,7 @@ def sequence_link_clicks(
               SELECT 1 FROM email_events oe
               WHERE oe.enrollment_id = ee.enrollment_id
                 AND oe.event_type = 'open'
-                AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 15
+                AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20
           )
     """
     params: dict = {"campaign_id": campaign_id}
