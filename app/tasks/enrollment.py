@@ -24,7 +24,7 @@ def bulk_enroll_campaign(
     from app.integrations import smartlead
     from app.models.prospect import Prospect
     from app.models.sequence_enrollment import SequenceEnrollment
-    from app.routers.dashboard import _ensure_personalized_intro, _prospect_custom_fields
+    from app.routers.dashboard import _prospect_custom_fields
 
     db = SessionLocal()
     try:
@@ -71,10 +71,6 @@ def bulk_enroll_campaign(
 
         if not to_enroll:
             return {"enrolled": 0, "skipped_status": skipped_status, "skipped_dupe": skipped_dupe}
-
-        # Generate missing intros
-        for prospect in to_enroll:
-            _ensure_personalized_intro(prospect, db)
 
         # Batch enroll
         lead_dicts = [
