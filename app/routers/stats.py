@@ -133,11 +133,34 @@ def overview_stats(db: Session = Depends(get_db), campaign_id: Optional[str] = N
            EmailEvent.event_type == "sent")
         .scalar() or 0
     )
-    total_opened = (
-        eq(db.query(func.count(EmailEvent.id)), ev_f,
-           EmailEvent.event_type == "open")
-        .scalar() or 0
-    )
+    # Bot-open filter: opens within 60s of the preceding send are security scanners, not humans
+    if campaign_id:
+        total_opened = db.execute(text("""
+            SELECT COUNT(*)
+            FROM email_events ee
+            WHERE ee.event_type = 'open'
+              AND ee.enrollment_id IN (
+                  SELECT id FROM sequence_enrollments WHERE smartlead_campaign_id = :cid
+              )
+              AND EXTRACT(EPOCH FROM (ee.occurred_at - (
+                  SELECT MAX(s.occurred_at) FROM email_events s
+                  WHERE s.enrollment_id = ee.enrollment_id
+                    AND s.event_type = 'sent'
+                    AND s.occurred_at <= ee.occurred_at
+              ))) >= 60
+        """), {"cid": campaign_id}).scalar() or 0
+    else:
+        total_opened = db.execute(text("""
+            SELECT COUNT(*)
+            FROM email_events ee
+            WHERE ee.event_type = 'open'
+              AND EXTRACT(EPOCH FROM (ee.occurred_at - (
+                  SELECT MAX(s.occurred_at) FROM email_events s
+                  WHERE s.enrollment_id = ee.enrollment_id
+                    AND s.event_type = 'sent'
+                    AND s.occurred_at <= ee.occurred_at
+              ))) >= 60
+        """)).scalar() or 0
     # Bot-click filter: clicks within 20s of the open are security scanners, not humans
     if campaign_id:
         total_clicked = db.execute(text("""
@@ -244,7 +267,14 @@ def sequences_by_type(db: Session = Depends(get_db), campaign_id: Optional[str] 
         SELECT
             COALESCE(se.campaign_name, se.smartlead_campaign_id) AS campaign_name,
             COUNT(DISTINCT se.id)                                                             AS enrolled,
-            COUNT(CASE WHEN ee.event_type = 'open'         THEN ee.id END) AS opened,
+            COUNT(CASE WHEN ee.event_type = 'open'
+                AND EXTRACT(EPOCH FROM (ee.occurred_at - (
+                    SELECT MAX(s.occurred_at) FROM email_events s
+                    WHERE s.enrollment_id = ee.enrollment_id
+                      AND s.event_type = 'sent'
+                      AND s.occurred_at <= ee.occurred_at
+                ))) >= 60
+                THEN ee.id END) AS opened,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'click'
                 AND EXISTS (SELECT 1 FROM email_events oe WHERE oe.enrollment_id = ee.enrollment_id
                     AND oe.event_type = 'open'
@@ -286,7 +316,14 @@ def campaigns_funnel(db: Session, campaign_id: Optional[str] = None) -> list[Cam
             COALESCE(se.campaign_name, se.smartlead_campaign_id)              AS label,
             COUNT(DISTINCT se.id)                                              AS enrolled,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'sent'  THEN ee.prospect_id END) AS sent,
-            COUNT(CASE WHEN ee.event_type = 'open'  THEN ee.id END) AS opened,
+            COUNT(CASE WHEN ee.event_type = 'open'
+                AND EXTRACT(EPOCH FROM (ee.occurred_at - (
+                    SELECT MAX(s.occurred_at) FROM email_events s
+                    WHERE s.enrollment_id = ee.enrollment_id
+                      AND s.event_type = 'sent'
+                      AND s.occurred_at <= ee.occurred_at
+                ))) >= 60
+                THEN ee.id END) AS opened,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'click'
                 AND EXISTS (SELECT 1 FROM email_events oe WHERE oe.enrollment_id = ee.enrollment_id
                     AND oe.event_type = 'open'
@@ -324,7 +361,14 @@ def sequence_stats(db: Session = Depends(get_db)):
             se.smartlead_campaign_id,
             se.track,
             COUNT(DISTINCT se.id)                                                          AS enrolled,
-            COUNT(CASE WHEN ee.event_type = 'open'  THEN ee.id END)                       AS opened,
+            COUNT(CASE WHEN ee.event_type = 'open'
+                AND EXTRACT(EPOCH FROM (ee.occurred_at - (
+                    SELECT MAX(s.occurred_at) FROM email_events s
+                    WHERE s.enrollment_id = ee.enrollment_id
+                      AND s.event_type = 'sent'
+                      AND s.occurred_at <= ee.occurred_at
+                ))) >= 60
+                THEN ee.id END)                                                            AS opened,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'click'
                 AND EXISTS (SELECT 1 FROM email_events oe WHERE oe.enrollment_id = ee.enrollment_id
                     AND oe.event_type = 'open'
@@ -400,7 +444,14 @@ def sequence_email_stats(db: Session, campaign_id: Optional[str] = None) -> list
             COALESCE(se.campaign_name, se.smartlead_campaign_id) AS campaign_name,
             ee.email_subject,
             COUNT(CASE WHEN ee.event_type = 'sent'  THEN ee.id END)                   AS sent,
-            COUNT(CASE WHEN ee.event_type = 'open'  THEN ee.id END)                   AS opened,
+            COUNT(CASE WHEN ee.event_type = 'open'
+                AND EXTRACT(EPOCH FROM (ee.occurred_at - (
+                    SELECT MAX(s.occurred_at) FROM email_events s
+                    WHERE s.enrollment_id = ee.enrollment_id
+                      AND s.event_type = 'sent'
+                      AND s.occurred_at <= ee.occurred_at
+                ))) >= 60
+                THEN ee.id END)                                                        AS opened,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'click'
                 AND EXISTS (SELECT 1 FROM email_events oe WHERE oe.enrollment_id = ee.enrollment_id
                     AND oe.event_type = 'open'
