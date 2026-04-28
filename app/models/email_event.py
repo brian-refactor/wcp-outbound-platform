@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Index, String, Text, UniqueConstraint, func
+from sqlalchemy import DateTime, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,6 +29,7 @@ class EmailEvent(Base):
     email_subject: Mapped[Optional[str]] = mapped_column(Text)
     domain_used: Mapped[Optional[str]] = mapped_column(String(255))
     clicked_url: Mapped[Optional[str]] = mapped_column(Text)
+    sequence_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # Smartlead dedup key — prevents duplicate inserts from webhook retries.
     # Unique per (message_id, event_type) so sent/open/click/reply for the same

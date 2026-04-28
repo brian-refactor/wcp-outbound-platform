@@ -44,8 +44,11 @@ from app.routers.stats import (
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 auth_router = APIRouter(tags=["auth"])
+from urllib.parse import quote as _url_quote
+
 templates = Jinja2Templates(directory="app/templates")
 templates.env.globals["enumerate"] = enumerate
+templates.env.filters["url_encode"] = lambda s: _url_quote(str(s), safe="")
 
 
 def _to_et(dt, fmt="%b %d, %H:%M"):
@@ -1575,12 +1578,80 @@ def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
     seq = sequence_stats(db=db)
     seq_types = sequences_by_type(db=db)
 
+    link_clicks = db.execute(text("""
+        SELECT
+            COALESCE(se.campaign_name, se.smartlead_campaign_id) AS campaign_name,
+            se.smartlead_campaign_id,
+            ee.clicked_url,
+            COUNT(DISTINCT ee.prospect_id) AS unique_clickers,
+            COUNT(ee.id)                   AS total_clicks,
+            string_agg(DISTINCT ee.sequence_number::text, ', '
+                ORDER BY ee.sequence_number::text)
+                FILTER (WHERE ee.sequence_number IS NOT NULL) AS sequence_numbers
+        FROM email_events ee
+        JOIN sequence_enrollments se ON se.id = ee.enrollment_id
+        WHERE ee.event_type = 'click'
+          AND ee.clicked_url IS NOT NULL
+        GROUP BY COALESCE(se.campaign_name, se.smartlead_campaign_id),
+                 se.smartlead_campaign_id, ee.clicked_url
+        ORDER BY campaign_name, unique_clickers DESC
+    """)).mappings().all()
+
     return templates.TemplateResponse(
         "dashboard/sequences.html",
         {
             "request": request,
             "sequences": seq,
             "seq_types": seq_types,
+            "link_clicks": link_clicks,
+            "active_page": "sequences",
+        },
+    )
+
+
+@router.get("/sequences/clicks", response_class=HTMLResponse)
+def sequence_link_clicks(
+    request: Request,
+    campaign_id: str = Query(...),
+    url: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    sql = """
+        SELECT
+            p.id::text          AS prospect_id,
+            p.first_name,
+            p.last_name,
+            p.email,
+            p.company,
+            p.title,
+            ee.clicked_url,
+            ee.sequence_number,
+            ee.occurred_at,
+            COALESCE(se.campaign_name, se.smartlead_campaign_id) AS campaign_name
+        FROM email_events ee
+        JOIN prospects p ON p.id = ee.prospect_id
+        JOIN sequence_enrollments se ON se.id = ee.enrollment_id
+        WHERE ee.event_type = 'click'
+          AND se.smartlead_campaign_id = :campaign_id
+    """
+    params: dict = {"campaign_id": campaign_id}
+    if url:
+        sql += " AND ee.clicked_url = :url"
+        params["url"] = url
+    sql += " ORDER BY ee.occurred_at DESC"
+
+    rows = db.execute(text(sql), params).mappings().all()
+    campaign_name = rows[0]["campaign_name"] if rows else campaign_id
+
+    return templates.TemplateResponse(
+        "dashboard/sequence_clicks.html",
+        {
+            "request": request,
+            "rows": rows,
+            "campaign_id": campaign_id,
+            "campaign_name": campaign_name,
+            "url_filter": url,
+            "total": len(rows),
             "active_page": "sequences",
         },
     )

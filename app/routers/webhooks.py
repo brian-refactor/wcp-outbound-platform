@@ -84,9 +84,11 @@ async def smartlead_webhook(request: Request, db: Session = Depends(get_db)):
     message_id = sent_message.get("message_id") or payload.get("message_id")
     lead_email = (payload.get("to_email") or payload.get("lead_email") or "").strip().lower()
     subject = payload.get("subject")
-    clicked_url = payload.get("clicked_link")
+    link_clicked = payload.get("link_clicked") or payload.get("link_details") or []
+    clicked_url = link_clicked[0] if link_clicked else None
     from_email = payload.get("from_email") or ""
     domain_used = from_email.split("@")[-1] if "@" in from_email else None
+    sequence_number = payload.get("sequence_number")
 
     # Extract Smartlead campaign ID to link this event to the correct enrollment
     campaign_id = str(payload.get("campaign_id") or "")
@@ -122,6 +124,7 @@ async def smartlead_webhook(request: Request, db: Session = Depends(get_db)):
         email_subject=subject,
         domain_used=domain_used,
         clicked_url=clicked_url,
+        sequence_number=sequence_number,
         smartlead_message_id=message_id,
         raw_payload=raw,
     )

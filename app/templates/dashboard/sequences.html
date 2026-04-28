@@ -108,7 +108,9 @@
         </td>
         <td class="px-4 py-3 text-right text-gray-800 font-medium">{{ row.enrolled }}</td>
         <td class="px-4 py-3 text-right text-blue-600">{{ row.opened }}</td>
-        <td class="px-4 py-3 text-right text-purple-600">{{ row.clicked }}</td>
+        <td class="px-4 py-3 text-right text-purple-600">
+          <a href="/dashboard/sequences/clicks?campaign_id={{ row.smartlead_campaign_id }}" class="hover:underline">{{ row.clicked }}</a>
+        </td>
         <td class="px-4 py-3 text-right text-green-600 font-semibold">{{ row.replied }}</td>
         <td class="px-4 py-3 text-right text-red-500">{{ row.bounced }}</td>
         <td class="px-4 py-3 text-right text-orange-500">{{ row.opted_out }}</td>
@@ -132,5 +134,56 @@
   </table>
 </div>
 
+{# ── Link Clicks by Campaign ── #}
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+  <div class="px-6 py-4 border-b border-gray-100">
+    <h2 class="text-sm font-semibold text-gray-700">Link Clicks by Campaign</h2>
+    <p class="text-xs text-gray-400 mt-0.5">Click a row to see which prospects clicked that link</p>
+  </div>
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 border-b border-gray-200">
+      <tr>
+        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Campaign</th>
+        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Link</th>
+        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Unique Clickers</th>
+        <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Total Clicks</th>
+        <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Email #</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for row in link_clicks %}
+      {% set drill = '/dashboard/sequences/clicks?campaign_id=' ~ row.smartlead_campaign_id ~ '&url=' ~ (row.clicked_url | url_encode) %}
+      <tr class="hover:bg-purple-50 cursor-pointer" onclick="window.location='{{ drill }}'">
+        <td class="px-4 py-3 text-gray-700 font-medium">{{ row.campaign_name }}</td>
+        <td class="px-4 py-3 max-w-xs">
+          <a href="{{ drill }}" class="text-indigo-600 hover:underline font-mono text-xs break-all"
+             title="{{ row.clicked_url }}" onclick="event.stopPropagation()">
+            {{ row.clicked_url[:70] }}{% if row.clicked_url | length > 70 %}…{% endif %}
+          </a>
+        </td>
+        <td class="px-4 py-3 text-right">
+          <a href="{{ drill }}" class="text-purple-600 font-semibold hover:underline" onclick="event.stopPropagation()">
+            {{ row.unique_clickers }}
+          </a>
+        </td>
+        <td class="px-4 py-3 text-right text-gray-500">{{ row.total_clicks }}</td>
+        <td class="px-4 py-3">
+          {% if row.sequence_numbers %}
+            {% for n in row.sequence_numbers.split(', ') %}
+            <span class="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 text-xs font-medium mr-1">#{{ n }}</span>
+            {% endfor %}
+          {% else %}
+            <span class="text-gray-400 text-xs">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" class="px-4 py-10 text-center text-gray-400 text-sm">No link clicks recorded yet.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 
 {% endblock %}
