@@ -106,4 +106,97 @@
   </table>
 </div>
 
+{# ── Engagement Timing ── #}
+{% if open_timing or click_timing %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+
+  {% if open_timing %}
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <h2 class="text-sm font-semibold text-gray-700 mb-1">Open Timing</h2>
+    <p class="text-xs text-gray-400 mb-4">Time from delivery to open (scanner opens filtered)</p>
+    <div style="height:200px;position:relative;">
+      <canvas id="openTimingChart"></canvas>
+    </div>
+    <table class="w-full text-sm mt-4">
+      <thead class="bg-gray-50 border-b border-gray-200">
+        <tr>
+          <th class="text-left px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">Window</th>
+          <th class="text-right px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">Opens</th>
+          <th class="text-right px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">Share</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for row in open_timing %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-3 py-2 text-gray-700">{{ row.bucket }}</td>
+          <td class="px-3 py-2 text-right font-semibold text-indigo-600">{{ row.opens }}</td>
+          <td class="px-3 py-2 text-right text-gray-500">{{ row.pct }}%</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <script>
+      (function() {
+        const labels = {{ open_timing | map(attribute='bucket') | list | tojson }};
+        const data   = {{ open_timing | map(attribute='opens')  | list | tojson }};
+        new Chart(document.getElementById('openTimingChart'), {
+          type: 'bar',
+          data: { labels, datasets: [{ data, backgroundColor: '#6366f1', borderRadius: 4 }] },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } },
+          },
+        });
+      })();
+    </script>
+  </div>
+  {% endif %}
+
+  {% if click_timing %}
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <h2 class="text-sm font-semibold text-gray-700 mb-1">Click Timing</h2>
+    <p class="text-xs text-gray-400 mb-4">Time from delivery to click (bot clicks filtered)</p>
+    <div style="height:200px;position:relative;">
+      <canvas id="clickTimingChart"></canvas>
+    </div>
+    <table class="w-full text-sm mt-4">
+      <thead class="bg-gray-50 border-b border-gray-200">
+        <tr>
+          <th class="text-left px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">Window</th>
+          <th class="text-right px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">Clicks</th>
+          <th class="text-right px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">Share</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for row in click_timing %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-3 py-2 text-gray-700">{{ row.bucket }}</td>
+          <td class="px-3 py-2 text-right font-semibold text-purple-600">{{ row.clicks }}</td>
+          <td class="px-3 py-2 text-right text-gray-500">{{ row.pct }}%</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <script>
+      (function() {
+        const labels = {{ click_timing | map(attribute='bucket') | list | tojson }};
+        const data   = {{ click_timing | map(attribute='clicks') | list | tojson }};
+        new Chart(document.getElementById('clickTimingChart'), {
+          type: 'bar',
+          data: { labels, datasets: [{ data, backgroundColor: '#8b5cf6', borderRadius: 4 }] },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } },
+          },
+        });
+      })();
+    </script>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}
+
 {% endblock %}

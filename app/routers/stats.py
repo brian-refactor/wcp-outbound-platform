@@ -483,9 +483,11 @@ def sequence_email_stats(db: Session, campaign_id: Optional[str] = None) -> list
     return result
 
 
-def click_timing_distribution(db: Session) -> list[dict]:
+def click_timing_distribution(db: Session, campaign_id: Optional[str] = None) -> list[dict]:
     """Bucketed send→click latency for human clicks (>= 20s open→click gap)."""
-    rows = db.execute(text("""
+    cid_filter = "AND ee.enrollment_id IN (SELECT id FROM sequence_enrollments WHERE smartlead_campaign_id = :cid)" if campaign_id else ""
+    params = {"cid": campaign_id} if campaign_id else {}
+    rows = db.execute(text(f"""
         SELECT
             CASE
                 WHEN delta_min < 5    THEN '1–5 min'
@@ -510,6 +512,7 @@ def click_timing_distribution(db: Session) -> list[dict]:
             FROM email_events ee
             WHERE ee.event_type = 'click'
               AND ee.clicked_url IS NOT NULL
+              {cid_filter}
               AND EXISTS (
                   SELECT 1 FROM email_events oe
                   WHERE oe.enrollment_id = ee.enrollment_id
@@ -520,13 +523,15 @@ def click_timing_distribution(db: Session) -> list[dict]:
         WHERE delta_min >= 1
         GROUP BY bucket
         ORDER BY MIN(delta_min)
-    """)).mappings().all()
+    """), params).mappings().all()
     return [{"bucket": r["bucket"], "clicks": r["clicks"], "pct": float(r["pct"])} for r in rows]
 
 
-def open_timing_distribution(db: Session) -> list[dict]:
+def open_timing_distribution(db: Session, campaign_id: Optional[str] = None) -> list[dict]:
     """Bucketed send→open latency for human opens (>= 60s after nearest preceding send)."""
-    rows = db.execute(text("""
+    cid_filter = "AND ee.enrollment_id IN (SELECT id FROM sequence_enrollments WHERE smartlead_campaign_id = :cid)" if campaign_id else ""
+    params = {"cid": campaign_id} if campaign_id else {}
+    rows = db.execute(text(f"""
         SELECT
             CASE
                 WHEN delta_min < 5    THEN '1–5 min'
@@ -550,11 +555,12 @@ def open_timing_distribution(db: Session) -> list[dict]:
                 )) / 60 AS delta_min
             FROM email_events ee
             WHERE ee.event_type = 'open'
+              {cid_filter}
         ) t
         WHERE delta_min >= 1
         GROUP BY bucket
         ORDER BY MIN(delta_min)
-    """)).mappings().all()
+    """), params).mappings().all()
     return [{"bucket": r["bucket"], "opens": r["opens"], "pct": float(r["pct"])} for r in rows]
 
 

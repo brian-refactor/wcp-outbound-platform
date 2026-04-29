@@ -1686,6 +1686,8 @@ def dashboard_sequence_detail(campaign_id: str, request: Request, db: Session = 
     hs_cfg = db.query(CampaignConfig).filter(
         CampaignConfig.smartlead_campaign_id == campaign_id
     ).first()
+    open_timing = open_timing_distribution(db=db, campaign_id=campaign_id)
+    click_timing = click_timing_distribution(db=db, campaign_id=campaign_id)
 
     return templates.TemplateResponse(
         "dashboard/sequence_detail.html",
@@ -1696,6 +1698,8 @@ def dashboard_sequence_detail(campaign_id: str, request: Request, db: Session = 
             "email_steps": email_steps,
             "stats": stats,
             "hs_cfg": hs_cfg,
+            "open_timing": open_timing,
+            "click_timing": click_timing,
             "active_page": "sequences",
         },
     )
