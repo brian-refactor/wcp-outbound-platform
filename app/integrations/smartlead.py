@@ -206,14 +206,14 @@ def list_email_accounts() -> list[dict]:
 
 
 # Smartlead's fixed AI lead category IDs → human-readable names.
-# Confirmed: 3 = Not Interested, 4 = Do Not Contact.
+# Confirmed from webhooks: 3 = Not Interested, 4 = Do Not Contact, 6 = Out of Office.
 CATEGORY_NAMES: dict[int, str] = {
     1: "Interested",
     2: "Meeting Booked",
     3: "Not Interested",
     4: "Do Not Contact",
-    5: "Out of Office",
-    6: "Wrong Person",
+    5: "Wrong Person",
+    6: "Out of Office",
     7: "Unqualified",
     8: "Follow Up",
 }

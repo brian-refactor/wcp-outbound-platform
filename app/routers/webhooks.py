@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.integrations.smartlead import CATEGORY_NAMES
 from app.models.email_event import EmailEvent
 from app.models.prospect import Prospect
 from app.models.sequence_enrollment import SequenceEnrollment
@@ -89,6 +90,8 @@ async def smartlead_webhook(request: Request, db: Session = Depends(get_db)):
     from_email = payload.get("from_email") or ""
     domain_used = from_email.split("@")[-1] if "@" in from_email else None
     sequence_number = payload.get("sequence_number")
+    reply_category_id = payload.get("reply_category")
+    reply_category = CATEGORY_NAMES.get(reply_category_id) if reply_category_id else None
 
     # Extract Smartlead campaign ID to link this event to the correct enrollment
     campaign_id = str(payload.get("campaign_id") or "")
@@ -149,11 +152,18 @@ async def smartlead_webhook(request: Request, db: Session = Depends(get_db)):
         enrollment.status = "bounced"
         logger.info("Prospect %s bounced on enrollment %s", lead_email, enrollment.id)
 
-    # Reply: mark enrollment as completed
+    # Reply: store category; only mark completed if it's a real reply (not OOO)
     if event_type == "reply" and enrollment:
-        enrollment.status = "completed"
-        enrollment.completed_at = datetime.now(timezone.utc)
-        logger.info("Prospect %s replied — enrollment %s marked completed", lead_email, enrollment.id)
+        if reply_category:
+            enrollment.smartlead_category = reply_category
+        if reply_category == "Out of Office":
+            logger.info(
+                "Prospect %s sent OOO — enrollment %s stays active", lead_email, enrollment.id
+            )
+        else:
+            enrollment.status = "completed"
+            enrollment.completed_at = datetime.now(timezone.utc)
+            logger.info("Prospect %s replied — enrollment %s marked completed", lead_email, enrollment.id)
 
     # Sequence complete: mark enrollment as completed
     if event_type == "complete" and enrollment:
