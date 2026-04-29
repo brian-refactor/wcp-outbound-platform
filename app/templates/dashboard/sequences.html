@@ -33,7 +33,7 @@
           options: {
             responsive: true,
             plugins: { legend: { position: 'bottom' } },
-            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+            scales: { y: { beginAtZero: true } },
           },
         });
       })();
@@ -63,7 +63,7 @@
             plugins: { legend: { position: 'bottom' } },
             scales: {
               x: { stacked: true },
-              y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } },
+              y: { stacked: true, beginAtZero: true },
             },
           },
         });
@@ -225,7 +225,7 @@
           options: {
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } },
+            scales: { y: { beginAtZero: true }, x: { grid: { display: false } } },
           },
         });
       })();
@@ -268,7 +268,7 @@
           options: {
             responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } },
+            scales: { y: { beginAtZero: true }, x: { grid: { display: false } } },
           },
         });
       })();
