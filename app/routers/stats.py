@@ -490,6 +490,7 @@ def click_timing_distribution(db: Session, campaign_id: Optional[str] = None) ->
     rows = db.execute(text(f"""
         SELECT
             CASE
+                WHEN delta_min < 1    THEN '< 1 min'
                 WHEN delta_min < 5    THEN '1–5 min'
                 WHEN delta_min < 30   THEN '5–30 min'
                 WHEN delta_min < 60   THEN '30–60 min'
@@ -520,7 +521,7 @@ def click_timing_distribution(db: Session, campaign_id: Optional[str] = None) ->
                     AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20
               )
         ) t
-        WHERE delta_min >= 1
+        WHERE delta_min >= 0
         GROUP BY bucket
         ORDER BY MIN(delta_min)
     """), params).mappings().all()
