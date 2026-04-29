@@ -186,4 +186,56 @@
   </table>
 </div>
 
+{# ── Open Timing Distribution ── #}
+{% if open_timing %}
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+  <div class="mb-4">
+    <h2 class="text-sm font-semibold text-gray-700">Open Timing</h2>
+    <p class="text-xs text-gray-400 mt-0.5">How long after delivery do human opens happen? (scanner opens filtered)</p>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+    <canvas id="openTimingChart" height="220"></canvas>
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 border-b border-gray-200">
+        <tr>
+          <th class="text-left px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">Time after delivery</th>
+          <th class="text-right px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">Opens</th>
+          <th class="text-right px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide">Share</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for row in open_timing %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-3 py-2 text-gray-700">{{ row.bucket }}</td>
+          <td class="px-3 py-2 text-right font-semibold text-indigo-600">{{ row.opens }}</td>
+          <td class="px-3 py-2 text-right text-gray-500">{{ row.pct }}%</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <script>
+    (function() {
+      const labels = {{ open_timing | map(attribute='bucket') | list | tojson }};
+      const opens  = {{ open_timing | map(attribute='opens')  | list | tojson }};
+      new Chart(document.getElementById('openTimingChart'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{ label: 'Opens', data: opens, backgroundColor: '#6366f1', borderRadius: 4 }],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1 } },
+            x: { grid: { display: false } },
+          },
+        },
+      });
+    })();
+  </script>
+</div>
+{% endif %}
+
 {% endblock %}

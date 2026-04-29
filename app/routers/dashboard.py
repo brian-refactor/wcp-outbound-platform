@@ -35,6 +35,7 @@ from app.routers.stats import (
     overview_stats,
     recent_events,
     sends_by_domain,
+    open_timing_distribution,
     sequence_stats,
     sequence_email_stats,
     sequences_by_type,
@@ -1603,6 +1604,8 @@ def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
         ORDER BY campaign_name, unique_clickers DESC
     """)).mappings().all()
 
+    open_timing = open_timing_distribution(db=db)
+
     return templates.TemplateResponse(
         "dashboard/sequences.html",
         {
@@ -1610,6 +1613,7 @@ def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
             "sequences": seq,
             "seq_types": seq_types,
             "link_clicks": link_clicks,
+            "open_timing": open_timing,
             "active_page": "sequences",
         },
     )
