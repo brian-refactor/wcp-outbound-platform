@@ -194,7 +194,9 @@
     <p class="text-xs text-gray-400 mt-0.5">How long after delivery do human opens happen? (scanner opens filtered)</p>
   </div>
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-    <canvas id="openTimingChart" height="220"></canvas>
+    <div style="height:220px;position:relative;">
+      <canvas id="openTimingChart"></canvas>
+    </div>
     <table class="w-full text-sm">
       <thead class="bg-gray-50 border-b border-gray-200">
         <tr>
@@ -226,6 +228,7 @@
         },
         options: {
           responsive: true,
+          maintainAspectRatio: false,
           plugins: { legend: { display: false } },
           scales: {
             y: { beginAtZero: true, ticks: { stepSize: 1 } },
