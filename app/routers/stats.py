@@ -483,6 +483,47 @@ def sequence_email_stats(db: Session, campaign_id: Optional[str] = None) -> list
     return result
 
 
+def click_timing_distribution(db: Session) -> list[dict]:
+    """Bucketed send→click latency for human clicks (>= 20s open→click gap)."""
+    rows = db.execute(text("""
+        SELECT
+            CASE
+                WHEN delta_min < 5    THEN '1–5 min'
+                WHEN delta_min < 30   THEN '5–30 min'
+                WHEN delta_min < 60   THEN '30–60 min'
+                WHEN delta_min < 240  THEN '1–4 hr'
+                WHEN delta_min < 1440 THEN '4–24 hr'
+                ELSE '> 24 hr'
+            END AS bucket,
+            COUNT(*) AS clicks,
+            ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS pct
+        FROM (
+            SELECT
+                EXTRACT(EPOCH FROM (
+                    ee.occurred_at - (
+                        SELECT MAX(s.occurred_at) FROM email_events s
+                        WHERE s.enrollment_id = ee.enrollment_id
+                          AND s.event_type = 'sent'
+                          AND s.occurred_at <= ee.occurred_at
+                    )
+                )) / 60 AS delta_min
+            FROM email_events ee
+            WHERE ee.event_type = 'click'
+              AND ee.clicked_url IS NOT NULL
+              AND EXISTS (
+                  SELECT 1 FROM email_events oe
+                  WHERE oe.enrollment_id = ee.enrollment_id
+                    AND oe.event_type = 'open'
+                    AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20
+              )
+        ) t
+        WHERE delta_min >= 1
+        GROUP BY bucket
+        ORDER BY MIN(delta_min)
+    """)).mappings().all()
+    return [{"bucket": r["bucket"], "clicks": r["clicks"], "pct": float(r["pct"])} for r in rows]
+
+
 def open_timing_distribution(db: Session) -> list[dict]:
     """Bucketed send→open latency for human opens (>= 60s after nearest preceding send)."""
     rows = db.execute(text("""
