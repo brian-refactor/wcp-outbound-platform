@@ -87,6 +87,7 @@
         <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Enrolled</th>
         <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Opened</th>
         <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Clicked</th>
+        {% if ga_sessions %}<th class="text-right px-4 py-3 text-xs font-medium text-green-600 uppercase tracking-wide" title="Real browser sessions from Google Analytics (UTM verified)">GA Sessions</th>{% endif %}
         <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Replied</th>
         <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Bounced</th>
         <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Opted Out</th>
@@ -111,6 +112,11 @@
         <td class="px-4 py-3 text-right text-purple-600">
           <a href="/dashboard/sequences/clicks?campaign_id={{ row.smartlead_campaign_id }}" class="hover:underline">{{ row.clicked }}</a>
         </td>
+        {% if ga_sessions %}
+        <td class="px-4 py-3 text-right text-green-600 font-semibold" title="Real browser sessions verified by Google Analytics">
+          {{ ga_sessions.get(row.smartlead_campaign_id, '—') }}
+        </td>
+        {% endif %}
         <td class="px-4 py-3 text-right text-green-600 font-semibold">{{ row.replied }}</td>
         <td class="px-4 py-3 text-right text-red-500">{{ row.bounced }}</td>
         <td class="px-4 py-3 text-right text-orange-500">{{ row.opted_out }}</td>
@@ -125,7 +131,7 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="9" class="px-4 py-10 text-center text-gray-400 text-sm">
+        <td colspan="{{ 10 if ga_sessions else 9 }}" class="px-4 py-10 text-center text-gray-400 text-sm">
           No enrollment data yet.
         </td>
       </tr>

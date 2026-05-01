@@ -1599,6 +1599,12 @@ def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
               WHERE oe.enrollment_id = ee.enrollment_id
                 AND oe.event_type = 'open'
                 AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20
+                AND EXTRACT(EPOCH FROM (oe.occurred_at - (
+                    SELECT MAX(s.occurred_at) FROM email_events s
+                    WHERE s.enrollment_id = oe.enrollment_id
+                      AND s.event_type = 'sent'
+                      AND s.occurred_at <= oe.occurred_at
+                ))) >= 60
           )
         GROUP BY COALESCE(se.campaign_name, se.smartlead_campaign_id),
                  se.smartlead_campaign_id, ee.clicked_url
@@ -1607,6 +1613,9 @@ def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
 
     open_timing = open_timing_distribution(db=db)
     click_timing = click_timing_distribution(db=db)
+
+    from app.integrations.google_analytics import get_email_sessions_by_campaign
+    ga_sessions = get_email_sessions_by_campaign()
 
     return templates.TemplateResponse(
         "dashboard/sequences.html",
@@ -1617,6 +1626,7 @@ def dashboard_sequences(request: Request, db: Session = Depends(get_db)):
             "link_clicks": link_clicks,
             "open_timing": open_timing,
             "click_timing": click_timing,
+            "ga_sessions": ga_sessions,
             "active_page": "sequences",
         },
     )
@@ -1651,6 +1661,12 @@ def sequence_link_clicks(
               WHERE oe.enrollment_id = ee.enrollment_id
                 AND oe.event_type = 'open'
                 AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20
+                AND EXTRACT(EPOCH FROM (oe.occurred_at - (
+                    SELECT MAX(s.occurred_at) FROM email_events s
+                    WHERE s.enrollment_id = oe.enrollment_id
+                      AND s.event_type = 'sent'
+                      AND s.occurred_at <= oe.occurred_at
+                ))) >= 60
           )
     """
     params: dict = {"campaign_id": campaign_id}

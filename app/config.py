@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # Hunter.io (email finder — fallback when Apollo returns no email)
     hunter_api_key: str = ""
 
+    # Google Analytics 4 (optional — enables GA-verified sessions column on Sequences page)
+    google_analytics_property_id: str = ""   # numeric ID from GA4 Admin → Property Settings
+    google_analytics_credentials_json: str = ""  # full service account JSON key content
+
     # API authentication
     api_key: str = ""  # X-API-Key header value; empty string disables auth in dev
 

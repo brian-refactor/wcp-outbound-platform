@@ -161,7 +161,8 @@ def overview_stats(db: Session = Depends(get_db), campaign_id: Optional[str] = N
                     AND s.occurred_at <= ee.occurred_at
               ))) >= 60
         """)).scalar() or 0
-    # Bot-click filter: clicks within 20s of the open are security scanners, not humans
+    # Bot-click filter: only count clicks preceded by a verified human open
+    # (human open = >= 60s after send, click = >= 20s after that open)
     if campaign_id:
         total_clicked = db.execute(text("""
             SELECT COUNT(DISTINCT ee.prospect_id)
@@ -175,6 +176,12 @@ def overview_stats(db: Session = Depends(get_db), campaign_id: Optional[str] = N
                   WHERE oe.enrollment_id = ee.enrollment_id
                     AND oe.event_type = 'open'
                     AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20
+                    AND EXTRACT(EPOCH FROM (oe.occurred_at - (
+                        SELECT MAX(s.occurred_at) FROM email_events s
+                        WHERE s.enrollment_id = oe.enrollment_id
+                          AND s.event_type = 'sent'
+                          AND s.occurred_at <= oe.occurred_at
+                    ))) >= 60
               )
         """), {"cid": campaign_id}).scalar() or 0
     else:
@@ -187,6 +194,12 @@ def overview_stats(db: Session = Depends(get_db), campaign_id: Optional[str] = N
                   WHERE oe.enrollment_id = ee.enrollment_id
                     AND oe.event_type = 'open'
                     AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20
+                    AND EXTRACT(EPOCH FROM (oe.occurred_at - (
+                        SELECT MAX(s.occurred_at) FROM email_events s
+                        WHERE s.enrollment_id = oe.enrollment_id
+                          AND s.event_type = 'sent'
+                          AND s.occurred_at <= oe.occurred_at
+                    ))) >= 60
               )
         """)).scalar() or 0
     total_replied = (
@@ -278,7 +291,13 @@ def sequences_by_type(db: Session = Depends(get_db), campaign_id: Optional[str] 
             COUNT(DISTINCT CASE WHEN ee.event_type = 'click'
                 AND EXISTS (SELECT 1 FROM email_events oe WHERE oe.enrollment_id = ee.enrollment_id
                     AND oe.event_type = 'open'
-                    AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20)
+                    AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20
+                    AND EXTRACT(EPOCH FROM (oe.occurred_at - (
+                        SELECT MAX(s.occurred_at) FROM email_events s
+                        WHERE s.enrollment_id = oe.enrollment_id
+                          AND s.event_type = 'sent'
+                          AND s.occurred_at <= oe.occurred_at
+                    ))) >= 60)
                 THEN ee.prospect_id END)                                                      AS clicked,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'reply'        THEN ee.prospect_id END) AS replied,
             COUNT(DISTINCT CASE WHEN se.track = 'standard'          THEN se.id END)          AS standard_count,
@@ -327,7 +346,13 @@ def campaigns_funnel(db: Session, campaign_id: Optional[str] = None) -> list[Cam
             COUNT(DISTINCT CASE WHEN ee.event_type = 'click'
                 AND EXISTS (SELECT 1 FROM email_events oe WHERE oe.enrollment_id = ee.enrollment_id
                     AND oe.event_type = 'open'
-                    AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20)
+                    AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20
+                    AND EXTRACT(EPOCH FROM (oe.occurred_at - (
+                        SELECT MAX(s.occurred_at) FROM email_events s
+                        WHERE s.enrollment_id = oe.enrollment_id
+                          AND s.event_type = 'sent'
+                          AND s.occurred_at <= oe.occurred_at
+                    ))) >= 60)
                 THEN ee.prospect_id END)                                                AS clicked,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN ee.prospect_id END) AS replied
         FROM sequence_enrollments se
@@ -372,7 +397,13 @@ def sequence_stats(db: Session = Depends(get_db)):
             COUNT(DISTINCT CASE WHEN ee.event_type = 'click'
                 AND EXISTS (SELECT 1 FROM email_events oe WHERE oe.enrollment_id = ee.enrollment_id
                     AND oe.event_type = 'open'
-                    AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20)
+                    AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20
+                    AND EXTRACT(EPOCH FROM (oe.occurred_at - (
+                        SELECT MAX(s.occurred_at) FROM email_events s
+                        WHERE s.enrollment_id = oe.enrollment_id
+                          AND s.event_type = 'sent'
+                          AND s.occurred_at <= oe.occurred_at
+                    ))) >= 60)
                 THEN ee.prospect_id END)                                                    AS clicked,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN ee.prospect_id END)     AS replied,
             COUNT(DISTINCT CASE WHEN se.status = 'bounced'   THEN se.id END)              AS bounced,
@@ -455,7 +486,13 @@ def sequence_email_stats(db: Session, campaign_id: Optional[str] = None) -> list
             COUNT(DISTINCT CASE WHEN ee.event_type = 'click'
                 AND EXISTS (SELECT 1 FROM email_events oe WHERE oe.enrollment_id = ee.enrollment_id
                     AND oe.event_type = 'open'
-                    AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20)
+                    AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20
+                    AND EXTRACT(EPOCH FROM (oe.occurred_at - (
+                        SELECT MAX(s.occurred_at) FROM email_events s
+                        WHERE s.enrollment_id = oe.enrollment_id
+                          AND s.event_type = 'sent'
+                          AND s.occurred_at <= oe.occurred_at
+                    ))) >= 60)
                 THEN ee.prospect_id END)                                               AS clicked,
             COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN ee.prospect_id END) AS replied
         FROM email_events ee
@@ -519,6 +556,12 @@ def click_timing_distribution(db: Session, campaign_id: Optional[str] = None) ->
                   WHERE oe.enrollment_id = ee.enrollment_id
                     AND oe.event_type = 'open'
                     AND EXTRACT(EPOCH FROM (ee.occurred_at - oe.occurred_at)) >= 20
+                    AND EXTRACT(EPOCH FROM (oe.occurred_at - (
+                        SELECT MAX(s.occurred_at) FROM email_events s
+                        WHERE s.enrollment_id = oe.enrollment_id
+                          AND s.event_type = 'sent'
+                          AND s.occurred_at <= oe.occurred_at
+                    ))) >= 60
               )
         ) t
         WHERE delta_min >= 0
