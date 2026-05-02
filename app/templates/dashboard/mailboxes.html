@@ -83,11 +83,11 @@
           {% set imap_ok = mb.get('is_imap_success') %}
           {% set cap = mb.get('message_per_day') or 0 %}
           {% set ws = warmup_stats.get(mb.get('id'), {}) %}
-          {% set ws_sent = ws.get('total_sent_count') or ws.get('sent_count') or 0 %}
-          {% set ws_spam = ws.get('total_spam_count') or ws.get('spam_count') or 0 %}
+          {% set ws_sent = (ws.get('total_sent_count') or ws.get('sent_count') or 0) | int %}
+          {% set ws_spam = (ws.get('total_spam_count') or ws.get('spam_count') or 0) | int %}
           {% set ws_days = ws.get('stats_by_date') or [] %}
           {% set rescue_7d = namespace(val=0) %}
-          {% for day in ws_days[-7:] %}{% set rescue_7d.val = rescue_7d.val + (day.get('save_from_spam_count') or 0) %}{% endfor %}
+          {% for day in ws_days[-7:] %}{% set rescue_7d.val = rescue_7d.val + ((day.get('save_from_spam_count') or 0) | int) %}{% endfor %}
           <tr class="hover:bg-gray-50">
             <td class="px-4 py-3">
               <div class="font-medium text-gray-800">{{ email }}</div>
