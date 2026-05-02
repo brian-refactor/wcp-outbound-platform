@@ -46,6 +46,9 @@ from app.routers.stats import (
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 auth_router = APIRouter(tags=["auth"])
+
+_warmup_cache: dict[int, tuple[float, dict]] = {}
+_WARMUP_CACHE_TTL = 3600
 from urllib.parse import quote as _url_quote
 
 templates = Jinja2Templates(directory="app/templates")
@@ -1795,6 +1798,8 @@ def campaign_config_post(
 
 @router.get("/mailboxes", response_class=HTMLResponse)
 def dashboard_mailboxes(request: Request, db: Session = Depends(get_db)):
+    import time
+
     # Live mailbox list from Smartlead API
     mailboxes = []
     smartlead_error = None
@@ -1803,6 +1808,21 @@ def dashboard_mailboxes(request: Request, db: Session = Depends(get_db)):
     except Exception as e:
         smartlead_error = str(e)
         logger.warning("Could not fetch Smartlead email accounts: %s", e)
+
+    # Warmup stats per account (cached 1 hour — 14 accounts would otherwise hammer the API)
+    warmup_stats: dict[int, dict] = {}
+    now = time.time()
+    for mb in mailboxes:
+        acct_id = mb.get("id")
+        if acct_id is None:
+            continue
+        cached_at, cached_data = _warmup_cache.get(acct_id, (0, {}))
+        if now - cached_at > _WARMUP_CACHE_TTL:
+            data = smartlead.get_warmup_stats(acct_id)
+            _warmup_cache[acct_id] = (now, data)
+            warmup_stats[acct_id] = data
+        else:
+            warmup_stats[acct_id] = cached_data
 
     # Sent today from our webhook event log — use ET midnight so "today" matches the user's timezone
     from zoneinfo import ZoneInfo
@@ -1825,11 +1845,31 @@ def dashboard_mailboxes(request: Request, db: Session = Depends(get_db)):
         {
             "request": request,
             "mailboxes": mailboxes,
+            "warmup_stats": warmup_stats,
             "smartlead_error": smartlead_error,
             "domain_sends": domain_sends,
             "domain_send_map": domain_send_map,
             "sent_today_db": sent_today_db,
             "active_page": "mailboxes",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Deliverability (Google Postmaster Tools)
+# ---------------------------------------------------------------------------
+
+@router.get("/deliverability", response_class=HTMLResponse)
+def dashboard_deliverability(request: Request):
+    from app.integrations.postmaster import get_domain_stats
+    domain_stats = get_domain_stats()
+    return templates.TemplateResponse(
+        "dashboard/deliverability.html",
+        {
+            "request": request,
+            "domain_stats": domain_stats,
+            "postmaster_configured": bool(settings.google_postmaster_domains and settings.google_analytics_credentials_json),
+            "active_page": "deliverability",
         },
     )
 

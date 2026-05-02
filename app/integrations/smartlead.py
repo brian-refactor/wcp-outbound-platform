@@ -205,6 +205,21 @@ def list_email_accounts() -> list[dict]:
         return response.json()
 
 
+def get_warmup_stats(account_id: int) -> dict:
+    """
+    Returns warmup stats for one mailbox: sent_count, spam_count, inbox_count,
+    stats_by_date (list of {date, sent_count, reply_count, save_from_spam_count}).
+    Returns {} on error.
+    """
+    try:
+        with _client() as client:
+            response = client.get(f"/email-accounts/{account_id}/warmup-stats")
+            response.raise_for_status()
+            return response.json()
+    except Exception:
+        return {}
+
+
 # Smartlead's fixed AI lead category IDs → human-readable names.
 # Confirmed from webhooks: 3 = Not Interested, 4 = Do Not Contact, 6 = Out of Office.
 CATEGORY_NAMES: dict[int, str] = {

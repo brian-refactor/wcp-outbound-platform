@@ -68,6 +68,8 @@
             <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Type</th>
             <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Warmup</th>
             <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Cap</th>
+            <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide" title="Warmup spam rate (spam / sent). Green &lt;5%, yellow 5–10%, red &gt;10%">Spam Rate</th>
+            <th class="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide" title="Emails rescued from spam in last 7 warmup days">Rescue 7d</th>
             <th class="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Health</th>
           </tr>
         </thead>
@@ -80,6 +82,12 @@
           {% set smtp_ok = mb.get('is_smtp_success') %}
           {% set imap_ok = mb.get('is_imap_success') %}
           {% set cap = mb.get('message_per_day') or 0 %}
+          {% set ws = warmup_stats.get(mb.get('id'), {}) %}
+          {% set ws_sent = ws.get('total_sent_count') or ws.get('sent_count') or 0 %}
+          {% set ws_spam = ws.get('total_spam_count') or ws.get('spam_count') or 0 %}
+          {% set ws_days = ws.get('stats_by_date') or [] %}
+          {% set rescue_7d = namespace(val=0) %}
+          {% for day in ws_days[-7:] %}{% set rescue_7d.val = rescue_7d.val + (day.get('save_from_spam_count') or 0) %}{% endfor %}
           <tr class="hover:bg-gray-50">
             <td class="px-4 py-3">
               <div class="font-medium text-gray-800">{{ email }}</div>
@@ -105,6 +113,23 @@
               {% endif %}
             </td>
             <td class="px-4 py-3 text-right text-gray-600 font-medium">{{ cap if cap else '-' }}</td>
+            <td class="px-4 py-3 text-right">
+              {% if ws_sent > 0 %}
+              {% set spam_pct = (ws_spam / ws_sent * 100) | round(1) %}
+              <span class="px-2 py-0.5 rounded-full text-xs font-semibold
+                {% if spam_pct < 5 %}bg-green-100 text-green-700
+                {% elif spam_pct < 10 %}bg-yellow-100 text-yellow-700
+                {% else %}bg-red-100 text-red-700{% endif %}"
+                title="{{ ws_spam }} spam / {{ ws_sent }} sent">
+                {{ spam_pct }}%
+              </span>
+              {% else %}
+              <span class="text-xs text-gray-400">—</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3 text-right text-xs {% if rescue_7d.val > 0 %}text-orange-500 font-semibold{% else %}text-gray-400{% endif %}">
+              {{ rescue_7d.val if rescue_7d.val > 0 else '—' }}
+            </td>
             <td class="px-4 py-3">
               <div class="flex items-center gap-2">
                 <span title="SMTP" class="text-xs {% if smtp_ok %}text-green-500{% else %}text-red-400{% endif %}">
@@ -127,6 +152,8 @@
               Total ({{ mailboxes | length }} mailboxes)
             </td>
             <td class="px-4 py-3 text-right font-bold text-gray-800">{{ total_cap }}/day</td>
+            <td></td>
+            <td></td>
             <td></td>
           </tr>
         </tfoot>

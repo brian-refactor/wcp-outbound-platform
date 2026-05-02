@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     google_analytics_property_id: str = ""   # numeric ID from GA4 Admin → Property Settings
     google_analytics_credentials_json: str = ""  # full service account JSON key content
 
+    # Google Postmaster Tools (optional — enables /dashboard/deliverability page)
+    # Comma-separated list of sending domains to monitor, e.g. "willowcreekinvest.com,wcpinvestors.com"
+    # Reuses google_analytics_credentials_json service account (different scope)
+    google_postmaster_domains: str = ""
+
     # API authentication
     api_key: str = ""  # X-API-Key header value; empty string disables auth in dev
 
