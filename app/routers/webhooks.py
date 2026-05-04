@@ -26,6 +26,35 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
+_OOO_PHRASES = (
+    "out of office",
+    "out of the office",
+    "automatic reply",
+    "auto-reply",
+    "auto reply",
+    "vacation reply",
+    "away from the office",
+    "away from my desk",
+    "i am currently out",
+    "i'm currently out",
+    "currently out of",
+    "will be back",
+    "on vacation",
+    "on annual leave",
+    "on parental leave",
+    "on maternity leave",
+    "on paternity leave",
+)
+
+
+def _is_ooo(reply_text: str | None, reply_category: str | None) -> bool:
+    if reply_category == "Out of Office":
+        return True
+    if reply_text:
+        lower = reply_text.lower()
+        return any(phrase in lower for phrase in _OOO_PHRASES)
+    return False
+
 # Smartlead event_type values mapped to our internal names
 SMARTLEAD_EVENT_MAP = {
     "EMAIL_SENT": "sent",
@@ -92,6 +121,11 @@ async def smartlead_webhook(request: Request, db: Session = Depends(get_db)):
     sequence_number = payload.get("sequence_number")
     reply_category_id = payload.get("reply_category")
     reply_category = CATEGORY_NAMES.get(reply_category_id) if reply_category_id else None
+    reply_text = (
+        ((payload.get("reply_message") or {}).get("text") or "").strip() or None
+        if event_type == "reply"
+        else None
+    )
 
     # Extract Smartlead campaign ID to link this event to the correct enrollment
     campaign_id = str(payload.get("campaign_id") or "")
@@ -156,7 +190,7 @@ async def smartlead_webhook(request: Request, db: Session = Depends(get_db)):
     if event_type == "reply" and enrollment:
         if reply_category:
             enrollment.smartlead_category = reply_category
-        if reply_category == "Out of Office":
+        if _is_ooo(reply_text, reply_category):
             logger.info(
                 "Prospect %s sent OOO — enrollment %s stays active", lead_email, enrollment.id
             )

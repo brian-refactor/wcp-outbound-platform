@@ -25,6 +25,35 @@ logger = logging.getLogger(__name__)
 BATCH_SIZE = 100
 _NOTE_EVENT_TYPES = {"click", "reply"}
 
+_OOO_PHRASES = (
+    "out of office",
+    "out of the office",
+    "automatic reply",
+    "auto-reply",
+    "auto reply",
+    "vacation reply",
+    "away from the office",
+    "away from my desk",
+    "i am currently out",
+    "i'm currently out",
+    "currently out of",
+    "will be back",
+    "on vacation",
+    "on annual leave",
+    "on parental leave",
+    "on maternity leave",
+    "on paternity leave",
+)
+
+
+def _is_ooo(reply_text: str | None, reply_category: str | None) -> bool:
+    if reply_category == "Out of Office":
+        return True
+    if reply_text:
+        lower = reply_text.lower()
+        return any(phrase in lower for phrase in _OOO_PHRASES)
+    return False
+
 
 @celery_app.task(name="app.tasks.hubspot_sync.sync_to_hubspot")
 def sync_to_hubspot():
@@ -217,7 +246,7 @@ def sync_to_hubspot():
                     _reply_category_id = _payload.get("reply_category")
                     from app.integrations.smartlead import CATEGORY_NAMES as _CAT
                     _reply_category = _CAT.get(_reply_category_id) if _reply_category_id else None
-                    if _reply_category == "Out of Office":
+                    if _is_ooo(reply_text, _reply_category):
                         logger.info(
                             "Skipping HubSpot deal for OOO reply from %s", prospect.email
                         )
