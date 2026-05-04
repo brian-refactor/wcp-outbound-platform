@@ -204,7 +204,8 @@ def overview_stats(db: Session = Depends(get_db), campaign_id: Optional[str] = N
         """)).scalar() or 0
     total_replied = (
         eq(db.query(func.count(func.distinct(EmailEvent.prospect_id))), ev_f,
-           EmailEvent.event_type == "reply")
+           EmailEvent.event_type == "reply",
+           EmailEvent.is_ooo == False)
         .scalar() or 0
     )
     total_bounced = (
@@ -299,7 +300,7 @@ def sequences_by_type(db: Session = Depends(get_db), campaign_id: Optional[str] 
                           AND s.occurred_at <= oe.occurred_at
                     ))) >= 60)
                 THEN ee.prospect_id END)                                                      AS clicked,
-            COUNT(DISTINCT CASE WHEN ee.event_type = 'reply'        THEN ee.prospect_id END) AS replied,
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' AND NOT ee.is_ooo THEN ee.prospect_id END) AS replied,
             COUNT(DISTINCT CASE WHEN se.track = 'standard'          THEN se.id END)          AS standard_count,
             COUNT(DISTINCT CASE WHEN se.track = 'high_intent'       THEN se.id END)          AS high_intent_count
         FROM sequence_enrollments se
@@ -354,7 +355,7 @@ def campaigns_funnel(db: Session, campaign_id: Optional[str] = None) -> list[Cam
                           AND s.occurred_at <= oe.occurred_at
                     ))) >= 60)
                 THEN ee.prospect_id END)                                                AS clicked,
-            COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN ee.prospect_id END) AS replied
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' AND NOT ee.is_ooo THEN ee.prospect_id END) AS replied
         FROM sequence_enrollments se
         LEFT JOIN email_events ee ON ee.enrollment_id = se.id
         {where}
@@ -405,7 +406,7 @@ def sequence_stats(db: Session = Depends(get_db)):
                           AND s.occurred_at <= oe.occurred_at
                     ))) >= 60)
                 THEN ee.prospect_id END)                                                    AS clicked,
-            COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN ee.prospect_id END)     AS replied,
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' AND NOT ee.is_ooo THEN ee.prospect_id END) AS replied,
             COUNT(DISTINCT CASE WHEN se.status = 'bounced'   THEN se.id END)              AS bounced,
             COUNT(DISTINCT CASE WHEN se.status = 'opted_out' THEN se.id END)              AS opted_out
         FROM sequence_enrollments se
@@ -494,7 +495,7 @@ def sequence_email_stats(db: Session, campaign_id: Optional[str] = None) -> list
                           AND s.occurred_at <= oe.occurred_at
                     ))) >= 60)
                 THEN ee.prospect_id END)                                               AS clicked,
-            COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' THEN ee.prospect_id END) AS replied
+            COUNT(DISTINCT CASE WHEN ee.event_type = 'reply' AND NOT ee.is_ooo THEN ee.prospect_id END) AS replied
         FROM email_events ee
         JOIN sequence_enrollments se ON se.id = ee.enrollment_id
         WHERE ee.email_subject IS NOT NULL {where}

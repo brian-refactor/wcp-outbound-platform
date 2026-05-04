@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Index, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -42,6 +42,9 @@ class EmailEvent(Base):
     hubspot_synced_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+    # True when the reply is an Out of Office auto-reply — excluded from reply counts
+    is_ooo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
     # Raw payload from Smartlead for debugging
     raw_payload: Mapped[Optional[str]] = mapped_column(Text)

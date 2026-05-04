@@ -238,15 +238,12 @@ def sync_to_hubspot():
                         for e in all_events
                     ]
 
-                    # Extract reply text, sequence number, and category from raw webhook payload
+                    # Extract reply text and sequence number from raw webhook payload
                     import json as _json
                     _payload = _json.loads(event.raw_payload) if event.raw_payload else {}
                     reply_text = (_payload.get("reply_message") or {}).get("text", "").strip() or None
                     sequence_number = _payload.get("sequence_number")
-                    _reply_category_id = _payload.get("reply_category")
-                    from app.integrations.smartlead import CATEGORY_NAMES as _CAT
-                    _reply_category = _CAT.get(_reply_category_id) if _reply_category_id else None
-                    if _is_ooo(reply_text, _reply_category):
+                    if event.is_ooo:
                         logger.info(
                             "Skipping HubSpot deal for OOO reply from %s", prospect.email
                         )

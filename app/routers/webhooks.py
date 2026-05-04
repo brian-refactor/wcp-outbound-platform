@@ -164,6 +164,7 @@ async def smartlead_webhook(request: Request, db: Session = Depends(get_db)):
         sequence_number=sequence_number,
         smartlead_message_id=message_id,
         raw_payload=raw,
+        is_ooo=_is_ooo(reply_text, reply_category) if event_type == "reply" else False,
     )
 
     db.add(event)
