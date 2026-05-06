@@ -12,7 +12,7 @@ This file is read by Claude Code at the start of every session. It contains stan
 
 ## Project Overview
 
-Internal investor acquisition platform for Willow Creek Partners. Automates outbound cold email outreach via Smartlead, tracks engagement events, syncs to HubSpot CRM, validates emails via ZeroBounce, generates AI-powered personalized email openers via Claude (Anthropic), sources new leads via Apollo.io people search, and enriches contacts via Apollo.io and Hunter.io. Managed through a private password-protected web dashboard.
+Internal investor acquisition platform for Willow Creek Partners. Automates outbound cold email outreach via Smartlead, tracks engagement events, syncs to HubSpot CRM, validates emails via Bouncer, generates AI-powered personalized email openers via Claude (Anthropic), sources new leads via Apollo.io people search, and enriches contacts via Apollo.io and Hunter.io. Managed through a private password-protected web dashboard.
 
 **Live URL:** https://web-production-eeb6.up.railway.app
 
@@ -116,10 +116,13 @@ The `worker` service Config File Path must be set to `railway.worker.toml` in th
 | `HUBSPOT_ACCESS_TOKEN` | HubSpot Private App bearer token |
 | `HUBSPOT_DEAL_PIPELINE_ID` | `890766156` — Outbound - Cold Leads pipeline |
 | `HUBSPOT_DEAL_STAGE_ID` | `1341410439` — New Lead to Contact stage |
-| `ZEROBOUNCE_API_KEY` | ZeroBounce API key — needed on **both** web and worker services |
+| `BOUNCER_API_KEY` | Bouncer (usebouncer.com) API key — needed on **both** web and worker services |
 | `ANTHROPIC_API_KEY` | Claude API key — web service only; used for personalized intro generation |
 | `APOLLO_API_KEY` | Apollo.io API key — web service only; enrichment (free) + people search (paid plan required) |
 | `HUNTER_API_KEY` | Hunter.io email finder API key — web service only; email fallback after Apollo |
+| `GOOGLE_ANALYTICS_PROPERTY_ID` | Numeric GA4 property ID — web service only; enables GA-verified sessions column on Sequences page |
+| `GOOGLE_ANALYTICS_CREDENTIALS_JSON` | Service account JSON key content — shared by GA4 and Postmaster Tools |
+| `GOOGLE_POSTMASTER_DOMAINS` | Comma-separated sending domains, e.g. `willowcreekinvest.com` — enables `/dashboard/deliverability` |
 | `API_KEY` | X-API-Key for REST API auth (web only; empty = disabled) |
 | `DASHBOARD_USERNAME` | Dashboard login username (web only) |
 | `DASHBOARD_PASSWORD` | Dashboard login password (web only; empty = auth disabled) |
@@ -136,17 +139,20 @@ The `worker` service Config File Path must be set to `railway.worker.toml` in th
                           - Webhook receiver /webhooks/smartlead
                           - Apollo Lead Finder /dashboard/leads
                           - Monthly Spend Tracker /dashboard/spend
+                          - Deliverability /dashboard/deliverability
 
   Smartlead ───webhook──▶ /webhooks/smartlead
 
                           worker service (Celery + Beat)
-                          - sync_to_hubspot     every 15 min
-                          - scan_high_intent    every 15 min
-                          - validate_emails     every 30 min
+                          - sync_to_hubspot       every 15 min
+                          - scan_high_intent      every 15 min
+                          - validate_emails       every 30 min
+                          - sync_lead_categories  every 15 min
 
   All services share: PostgreSQL (Railway) + Redis (Upstash)
-  External APIs: Smartlead, HubSpot, ZeroBounce, Anthropic (Claude),
-                 Apollo.io, Hunter.io
+  External APIs: Smartlead, HubSpot, Bouncer, Anthropic (Claude),
+                 Apollo.io, Hunter.io, Google Analytics 4,
+                 Google Postmaster Tools
 ```
 
 ---
@@ -161,8 +167,9 @@ app/
   worker.py                Celery app + beat schedule
   models/
     prospect.py            Prospect model
-    sequence_enrollment.py SequenceEnrollment model
-    email_event.py         EmailEvent model
+    sequence_enrollment.py SequenceEnrollment model (includes smartlead_category)
+    email_event.py         EmailEvent model (includes is_ooo, sequence_number)
+    campaign_config.py     CampaignConfig — per-campaign HubSpot trigger overrides
     saved_search.py        SavedSearch model (EDGAR saved searches)
     tool_cost.py           ToolCost model (monthly spend tracker)
   routers/
@@ -174,38 +181,52 @@ app/
     prospect.py            Pydantic models for REST API I/O (ProspectCreate, ProspectOut, EnrollmentOut, etc.)
   dependencies.py          require_api_key FastAPI dependency (X-API-Key header; empty API_KEY bypasses in dev)
   integrations/
-    smartlead.py           Smartlead API client (enroll, campaigns, mailboxes)
+    smartlead.py           Smartlead API client (enroll, campaigns, mailboxes, lead categories)
     hubspot.py             HubSpot API client (upsert contacts, notes, deals)
-    zerobounce.py          ZeroBounce client (validate_batch, get_credits)
+    bouncer.py             Bouncer client (validate_batch, validate_all, get_credits) — primary email validator
     claude_ai.py           Claude API client (generate_personalized_intro)
     apollo.py              Apollo.io — enrich_person (People Match) + search_people (paid)
     hunter.py              Hunter.io email finder (email fallback)
+    google_analytics.py    GA4 Data API — session counts by utm_campaign (sl{campaign_id} naming convention)
+    postmaster.py          Google Postmaster Tools — domain reputation, spam rate, auth pass rates
     edgar.py               SEC EDGAR Form D search + XML parser (routes kept, not in nav)
+    zerobounce.py          ZeroBounce client (legacy — kept for credits display only; validation uses Bouncer)
   tasks/
     hubspot_sync.py        Celery task — batch sync email events → HubSpot
     high_intent.py         Celery task — scan and upgrade high-intent enrollments
-    email_validation.py    Celery task — batch validate emails via ZeroBounce
+    email_validation.py    Celery task — validate_emails (scheduled), revalidate_unknown_emails, validate_selected_emails (on-demand)
+    category_sync.py       Celery task — sync Smartlead AI lead categories → sequence_enrollments.smartlead_category
+    enrollment.py          Celery task — bulk_enroll_campaign (background bulk enrollment)
   templates/
-    base.html              Sidebar layout, nav (no ZeroBounce widget — moved to spend page)
+    base.html              Sidebar layout, nav
     dashboard/
-      overview.html        KPI cards (row 1: prospects/enrollments/sent/opened; row 2: clicks/replies/bounces/spam/unsubscribed), funnel chart (enrolled→sent→opened→clicked→replied by campaign), activity feed
-      prospects.html       Prospect list, filters, bulk enrollment, batch intro generation
-      prospect_detail.html Two-column info card, personalized intro card, enrollment history
-      prospect_edit.html   Edit form for all prospect fields + enrollment + Apollo/Hunter/Google/LinkedIn enrichment
+      overview.html        KPI cards, funnel chart, activity feed
+      prospects.html       Prospect list, filters, bulk enrollment, batch intro generation, bulk delete
+      prospect_detail.html Contact card, investor profile, personalized intro, enrollment history
+      prospect_edit.html   Edit form + enrollment + enrichment buttons
       prospect_new.html    Single prospect add form
-      prospect_import.html CSV import + HubSpot list import (shared multi-state template)
-      sequences.html       Sequence/campaign performance charts and tables
+      prospect_import.html CSV upload + HubSpot list import (multi-state template)
+      sequences.html       Campaign performance charts and table (includes GA4 sessions column)
+      sequence_detail.html Per-campaign lead-by-lead stats and activity
+      sequence_clicks.html Link click tracking across campaigns
+      campaign_config.html Per-campaign HubSpot trigger event config (none/open/click/reply)
+      leads.html           Apollo people search lead finder
+      leads_batch_preview.html  Preview page for batch-adding leads from Apollo
+      mailboxes.html       Email account warmup status
       sync.html            HubSpot sync health page
-      leads.html           Apollo people search lead finder (keyword/title/location filters)
-      spend.html           Monthly spend tracker — tool costs + efficiency metrics (cost/email, cost/lead) + ZeroBounce credits
+      deliverability.html  Google Postmaster Tools — domain reputation, spam rate, auth rates
+      spend.html           Monthly spend tracker + ZeroBounce credits
       edgar.html           EDGAR Form D lead finder (routes kept, removed from nav)
       edgar_preview.html   Shared preview/confirm page before saving any lead as prospect
       fragments/
         activity_feed.html HTMX auto-refresh fragment
-        zb_credits.html    HTMX fragment — ZeroBounce credits card (used on spend page)
+        zb_credits.html    HTMX fragment — ZeroBounce credits card (spend page)
         zb_alert.html      HTMX fragment — site-wide low-credit banner (returns empty if ok)
 migrations/
   versions/                Alembic migration files
+scripts/
+  sync_smartlead_enrollments.py  One-time backfill: insert missing enrollment records from Smartlead
+  apply_bouncer_logs.py          One-time: apply Bouncer validation results from a CSV log
 railway.toml               Web service Railway config
 railway.worker.toml        Worker service Railway config
 ```
@@ -215,19 +236,22 @@ railway.worker.toml        Worker service Railway config
 ## Data Model Summary
 
 ### `prospects`
-Email (unique), first_name, last_name, company, title, phone, linkedin_url, geography, asset_class_preference (PE/RE/both), net_worth_estimate, wealth_tier (mass_affluent/HNWI/UHNWI/institutional), investor_type (individual/family_office/RIA/broker_dealer/endowment/pension/other), source (apollo/manual/referral/linkedin), accredited_status (unverified/pending/verified/failed), email_validation_status (valid/invalid/catch-all/unknown — set by ZeroBounce), email_validated_at, **personalized_intro** (AI-generated email opener, set by Claude at enrollment time or on demand).
+Email (unique), first_name, last_name, company, title, phone, linkedin_url, geography, asset_class_preference (PE/RE/both), net_worth_estimate, wealth_tier (mass_affluent/HNWI/UHNWI/institutional), investor_type (individual/family_office/RIA/broker_dealer/endowment/pension/other), source (apollo/manual/referral/linkedin), accredited_status (unverified/pending/verified/failed), email_validation_status (valid/invalid/catch-all/unknown — set by Bouncer), email_validated_at, **personalized_intro** (AI-generated email opener, set by Claude at enrollment time or on demand).
 
 ### `sequence_enrollments`
-prospect_id, smartlead_campaign_id, campaign_name, track (standard/high_intent), status (active/completed/opted_out/bounced), high_intent_campaign_id, timestamps. Note: `sequence_type` has been removed — campaigns are identified by name/ID only.
+prospect_id, smartlead_campaign_id, campaign_name, track (standard/high_intent), status (active/completed/opted_out/bounced), high_intent_campaign_id, **smartlead_category** (Smartlead AI label e.g. "Interested" — synced every 15 min by category_sync task), timestamps. Note: `sequence_type` has been removed — campaigns are identified by name/ID only.
 
 ### `email_events`
-prospect_id (nullable), enrollment_id (nullable), event_type (sent/open/click/reply/bounce/unsubscribe/complete), email_subject, domain_used, clicked_url, smartlead_message_id, event_type composite unique `(smartlead_message_id, event_type)` — prevents duplicate events of different types with the same message ID, hubspot_synced_at (NULL until synced), raw_payload, occurred_at.
+prospect_id (nullable), enrollment_id (nullable), event_type (sent/open/click/reply/bounce/unsubscribe/complete), email_subject, domain_used, clicked_url, **sequence_number** (step number in the campaign), smartlead_message_id, composite unique `(smartlead_message_id, event_type)` — prevents duplicate events, **is_ooo** (bool — True if reply is an Out-of-Office auto-reply, excluded from reply counts), hubspot_synced_at, raw_payload, occurred_at.
+
+### `campaign_configs`
+smartlead_campaign_id (unique), campaign_name, **hubspot_trigger_event** (none/open/click/reply — overrides global default), hubspot_pipeline_id, hubspot_stage_id. Allows per-campaign control of which event creates a HubSpot deal.
 
 ### `saved_searches`
-id, name, params (JSON string of EDGAR search params: keywords/state/start_date/end_date), created_at. Used by the EDGAR lead finder (routes kept, not in nav).
+id, name, params (JSON string of EDGAR search params), created_at.
 
 ### `tool_costs`
-id, name, category (outreach/crm/enrichment/ai/validation/hosting/infrastructure/other), monthly_cost (numeric), status (active/inactive), notes. Pre-seeded with 8 known tools. Used by the Monthly Spend Tracker page.
+id, name, category (outreach/crm/enrichment/ai/validation/hosting/infrastructure/other), monthly_cost (numeric), status (active/inactive), notes.
 
 ---
 
@@ -235,66 +259,64 @@ id, name, category (outreach/crm/enrichment/ai/validation/hosting/infrastructure
 
 ### Smartlead
 - Webhook URL: `https://web-production-eeb6.up.railway.app/webhooks/smartlead`
-- No webhook secret validation — `smartlead_webhook_secret` exists in `config.py` but the handler does not check it (Smartlead sends `secret_key` in the body but the validation is intentionally omitted).
+- No webhook secret validation — intentionally omitted.
 - Custom fields at enrollment must be nested under `"custom_fields"` key — NOT flat on the lead object.
 - All event type variants are mapped (e.g. `EMAIL_REPLY` and `EMAIL_REPLIED` both resolve to `"reply"`).
+- OOO replies are detected by text content and marked `is_ooo=True`; excluded from all replied counts.
 - Campaigns must be created manually in Smartlead UI. Campaign IDs are integers.
 - `personalized_intro` is passed as a custom field at enrollment. Use `{{custom_fields.personalized_intro}}` in Smartlead email templates.
-- `unsubscribe_text` field in Smartlead = the footer text shown at the bottom of emails (e.g. "Unsubscribe"). It is NOT a reply keyword detector. Do not put keywords in this field.
+- `unsubscribe_text` field in Smartlead = the footer text shown at the bottom of emails. It is NOT a reply keyword detector.
 - Update campaign settings via `POST /api/v1/campaigns/{id}/settings` (not PUT or PATCH).
 
 ### HubSpot
-- Auth: Private App token (Bearer). Create under Settings → Integrations → Private Apps.
-- Required scopes: `crm.objects.contacts.read/write`, `crm.objects.deals.read/write`
-- HubSpot list import uses v1 Contacts API (`/contacts/v1/lists`, `/contacts/v1/lists/{id}/contacts/all`) — works with `crm.objects.contacts.read`. If you get a 403, add `crm.lists.read` scope to the Private App in HubSpot.
-- `get_lists()` returns all lists sorted by name with size + dynamic flag. `get_list_contacts(list_id)` paginates via `vidOffset`, skips contacts with no email.
-- click events → upsert contact + note
-- reply events → upsert contact + note + Deal named `"WCP Automated Outbound - {name}"`
+- Auth: Private App token (Bearer). Required scopes: `crm.objects.contacts.read/write`, `crm.objects.deals.read/write`, `crm.lists.read`.
+- HubSpot list import uses v1 Contacts API (`/contacts/v1/lists`, `/contacts/v1/lists/{id}/contacts/all`).
+- Per-campaign HubSpot trigger is configurable via `CampaignConfig`. Default (no config row): reply events only.
+- click/reply events → upsert contact + note + Deal named `"WCP Automated Outbound - {name}"`
 - sent/open/bounce/unsubscribe → marked synced, no HubSpot API call made
 - **Active pipeline:** `890766156` (Outbound - Cold Leads) → stage `1341410439` (New Lead to Contact)
 
-### ZeroBounce
-- Batch validates up to 200 emails per API call.
-- Status mapping: `valid` → valid; `catch-all` → catch-all; `invalid/spamtrap/abuse/do_not_mail/disposable` → invalid; else → unknown.
-- Enrollment is **blocked** for all statuses except `valid` (including `null`).
-- Credits are displayed on the **Monthly Spend page** (`/dashboard/spend`) via HTMX fragment.
-- The sidebar ZeroBounce widget has been removed. The `zb_alert.html` fragment and `/dashboard/fragments/zb-alert` route exist but the banner has been removed from `base.html` — it was distracting.
-- Email is validated immediately when a new prospect is added (web request), and also in the background batch task every 30 min.
+### Bouncer (email validation)
+- Primary email validator — replaced ZeroBounce.
+- `validate_batch(emails)`: synchronous, up to 10,000 emails per call. Use for small lists.
+- `validate_all(emails)`: splits into batches of 20 with 1s delay between requests. Use for all bulk operations — sending large batches at once causes Bouncer to return 'unknown' due to internal timeout.
+- Status mapping: `deliverable` + toxicity ≤ 5 → valid; `deliverable` + toxicity > 5 → catch-all; `risky` → catch-all; `undeliverable` → invalid; else → unknown.
+- Enrollment is **blocked** for all statuses except `valid` and `catch-all`.
+- Scheduled task validates NULL-status prospects every 30 min. On-demand tasks handle `unknown` revalidation and selected-prospect validation.
 
 ### Claude (Anthropic)
 - Model: `claude-haiku-4-5-20251001` (fast and cheap for short generations).
 - `generate_personalized_intro(prospect)` in `app/integrations/claude_ai.py` generates a 1–2 sentence personalized email opener.
 - Called automatically at enrollment time via `_ensure_personalized_intro()` — generates once, reuses after.
 - Falls back to rule-based opener if API key missing or generation fails.
-- Can be generated/regenerated on demand from the prospect detail page (HTMX button).
-- Batch generation available from prospects list.
 
 ### Apollo.io
-- **Both functions** use `X-Api-Key` header auth (not `api_key` in body) — required for new/master keys.
-- **Enrichment** (`enrich_person`): `POST https://api.apollo.io/v1/people/match`. Free tier. Used on Lead Finder "+ Add" flow and prospect edit page.
-- **People Search** (`search_people`): `POST https://api.apollo.io/v1/mixed_people/api_search`. **Paid plan required** — free tier returns `API_INACCESSIBLE`. Powers the Lead Finder page.
-- Search results return **obfuscated last names** (`last_name_obfuscated`) and a `has_email` boolean — no actual email/phone in search results. Full data is retrieved only when "+ Add" triggers `enrich_person`.
-- Search filter params supported:
-  - `q_keywords` — free text
-  - `person_titles` (array) — job title keywords
-  - `person_locations` (array) — city/state/country
-  - `organization_num_employees_ranges` (array) — e.g. `["1,10", "11,50"]`
-  - `organization_revenue_ranges` (array) — e.g. `["1000000,10000000"]`
-  - `q_organization_keyword_tags` (array) — industry tags e.g. `["financial services", "real estate"]`
-  - `contact_email_status` (array) — e.g. `["verified", "likely to engage"]` for has-email filter
-  - `person_seniority_levels` — **not supported** by `api_search`; use `person_titles` with EXECUTIVE_TITLES constant instead
+- **Both functions** use `X-Api-Key` header auth (not `api_key` in body).
+- **Enrichment** (`enrich_person`): `POST https://api.apollo.io/v1/people/match`. Free tier.
+- **People Search** (`search_people`): `POST https://api.apollo.io/v1/mixed_people/api_search`. **Paid plan required.**
+- Search results return obfuscated last names and a `has_email` boolean — full data only from `enrich_person`.
+- Apollo returns 200 OK with JSON `{"error": "..."}` on failure — `raise_for_status()` won't catch it.
+- `api_search` ignores `person_seniority_levels` — use `person_titles` with EXECUTIVE_TITLES constant instead.
 - If Apollo returns no email during enrichment, Hunter.io is tried next.
+
+### Google Analytics 4
+- `get_email_sessions_by_campaign()` returns `{campaign_id: session_count}` for sessions where utm_source=outbound, utm_medium=email.
+- Smartlead email templates must set `utm_campaign=sl{smartlead_campaign_id}` — the `sl` prefix is stripped to match campaign IDs.
+- Returns `{}` if `GOOGLE_ANALYTICS_PROPERTY_ID` or `GOOGLE_ANALYTICS_CREDENTIALS_JSON` is not set (column hidden gracefully).
+
+### Google Postmaster Tools
+- `get_domain_stats()` returns domain reputation, spam_rate, spf/dkim/dmarc pass rates for each configured domain.
+- Reuses `GOOGLE_ANALYTICS_CREDENTIALS_JSON` service account with a different scope (`postmaster.readonly`).
+- The service account must be added as Viewer in Postmaster Tools UI and the Gmail Postmaster Tools API must be enabled in the Google Cloud project.
+- Returns `[]` if `GOOGLE_POSTMASTER_DOMAINS` is not set — the deliverability page renders gracefully without it.
 
 ### Hunter.io
 - Endpoint: `GET https://api.hunter.io/v2/email-finder`
-- Called as fallback after Apollo if no email found. Also callable directly from the prospect edit page.
-- Params: first_name, last_name, company, api_key.
-- Returns: email, confidence score, number of sources.
+- Called as fallback after Apollo if no email found.
 
 ### SEC EDGAR (Form D)
 - Routes are kept in `app/routers/dashboard.py` but the nav link has been removed.
-- EDGAR is not the primary lead source — Apollo people search replaced it in the sidebar.
-- Integration notes retained for reference: search endpoint `GET https://efts.sec.gov/LATEST/search-index`, form D XML parser in `app/integrations/edgar.py`.
+- Apollo people search is the primary lead source.
 
 ---
 
@@ -302,11 +324,13 @@ id, name, category (outreach/crm/enrichment/ai/validation/hosting/infrastructure
 
 1. `email_validation_status` must be `"valid"` or `"catch-all"` — null, unknown, and invalid are blocked.
 2. `personalized_intro` is generated (Claude or fallback) at enrollment time if not already set.
-3. Bulk enroll skips prospects already `active` in the target campaign (duplicate prevention).
-4. On **reply** or **sequence complete** event → enrollment `status = "completed"`.
-5. On **bounce** → enrollment `status = "bounced"`.
-6. On **unsubscribe** → enrollment `status = "opted_out"`.
-7. High Intent upgrade: ≥ 1 click older than 48 hours AND no reply → enrolled in High Intent campaign, track set to `"high_intent"`.
+3. Bulk enroll skips prospects already `active` in the target campaign (deduped against both DB and Smartlead API).
+4. Bulk enrollment runs in the background via the `bulk_enroll_campaign` Celery task — the web request returns immediately.
+5. On **reply** or **sequence complete** event → enrollment `status = "completed"`.
+6. On **bounce** → enrollment `status = "bounced"`.
+7. On **unsubscribe** → enrollment `status = "opted_out"`.
+8. High Intent upgrade: ≥ 1 click older than 48 hours AND no reply → enrolled in High Intent campaign, track set to `"high_intent"`.
+9. OOO replies (`is_ooo=True`) do NOT complete the enrollment — they are excluded from replied counts everywhere.
 
 ---
 
@@ -316,36 +340,40 @@ id, name, category (outreach/crm/enrichment/ai/validation/hosting/infrastructure
 |-------|-------------|
 | `/login` | Password login |
 | `/dashboard/` | Overview: KPIs, engagement rates, funnel chart by campaign, activity feed |
-| `/dashboard/prospects` | List with search, filters, bulk enrollment, batch intro generation |
-| `/dashboard/prospects/new` | Add single prospect (validates email via ZeroBounce immediately) |
+| `/dashboard/prospects` | List with search, filters, bulk enrollment, bulk delete, batch intro generation |
+| `/dashboard/prospects/new` | Add single prospect (validates email via Bouncer immediately) |
 | `/dashboard/prospects/import` | Import landing page — CSV upload or HubSpot list import |
-| `/dashboard/prospects/import/hubspot` | GET — list picker (fetches all HubSpot contact lists); POST — dedup + ZeroBounce validate + preview |
-| `/dashboard/prospects/import/hubspot/confirm` | POST — save confirmed HubSpot contacts as prospects (source=hubspot) |
-| `/dashboard/prospects/bulk-enroll` | POST — bulk enroll selected prospects (skips already-active duplicates) |
+| `/dashboard/prospects/import/hubspot` | GET — list picker; POST — dedup + validate + preview |
+| `/dashboard/prospects/import/hubspot/confirm` | POST — save confirmed HubSpot contacts |
+| `/dashboard/prospects/bulk-enroll` | POST — trigger background bulk enrollment Celery task |
+| `/dashboard/prospects/bulk-delete` | POST — delete selected prospects (cascades enrollments + events) |
+| `/dashboard/prospects/bulk-validate-emails` | POST — trigger Bouncer validation for selected prospects |
+| `/dashboard/prospects/revalidate-unknown` | POST — trigger revalidation of all unknown-status prospects |
 | `/dashboard/prospects/batch-generate-intro` | POST — generate Claude intros for selected or all missing (up to 100) |
 | `/dashboard/prospects/{id}` | Detail page — contact card, investor profile, personalized intro, enrollment history |
 | `/dashboard/prospects/{id}/edit` | Edit all fields + enroll in sequence + enrichment buttons |
-| `/dashboard/prospects/{id}/enrich` | POST — run Apollo/Hunter enrichment, fill blank fields, redirect back to edit |
-| `/dashboard/prospects/{id}/delete` | Delete prospect (cascades enrollments + events) |
+| `/dashboard/prospects/{id}/enrich` | POST — run Apollo/Hunter enrichment, fill blank fields |
+| `/dashboard/prospects/{id}/delete` | POST — delete prospect (cascades) |
 | `/dashboard/prospects/{id}/generate-intro` | POST — generate/regenerate Claude intro (HTMX) |
-| `/dashboard/sequences` | Campaign performance charts and table |
+| `/dashboard/sequences` | Campaign performance charts and table (GA4 sessions column if configured) |
+| `/dashboard/sequences/clicks` | Link click tracking — which URLs are being clicked across all campaigns |
+| `/dashboard/sequences/{campaign_id}` | Per-campaign detail: lead-by-lead stats and event history |
+| `/dashboard/sequences/{campaign_id}/config` | GET/POST — per-campaign HubSpot trigger event config |
 | `/dashboard/mailboxes` | Email account warmup status |
+| `/dashboard/deliverability` | Google Postmaster Tools — domain reputation, spam rate, auth pass rates |
 | `/dashboard/sync` | HubSpot sync health — pending count, recent synced events |
-| `/dashboard/leads` | Apollo people search — keyword, title, location, executives toggle, company size, revenue, industry, has-email filters + quick-filter presets (inside form) |
-| `/dashboard/leads/add-prospect` | POST — enrich via Apollo+Hunter, show preview (no save yet) |
+| `/dashboard/leads` | Apollo people search lead finder |
+| `/dashboard/leads/add-prospect` | POST — enrich via Apollo+Hunter, show preview |
 | `/dashboard/leads/confirm-prospect` | POST — save confirmed prospect |
-| `/dashboard/spend` | Monthly spend tracker — run rate cards, cost/email sent, cost/HubSpot lead (current month), tool costs table, ZeroBounce credits |
-| `/dashboard/spend/add` | POST — add new tool to spend tracker |
+| `/dashboard/spend` | Monthly spend tracker — run rate, cost/email, cost/lead, tool costs table |
+| `/dashboard/spend/add` | POST — add new tool |
 | `/dashboard/spend/{id}/update` | POST — update tool cost/status |
-| `/dashboard/spend/{id}/delete` | POST — remove tool from tracker |
+| `/dashboard/spend/{id}/delete` | POST — remove tool |
 | `/dashboard/edgar` | EDGAR Form D lead finder (routes kept, not in nav) |
-| `/dashboard/edgar/add-prospect` | POST — enrich via Apollo+Hunter, show preview |
-| `/dashboard/edgar/confirm-prospect` | POST — save confirmed EDGAR prospect |
-| `/dashboard/edgar/save-search` | POST — save named search to DB |
-| `/dashboard/edgar/saved-searches/{id}/delete` | POST — delete saved search |
 | `/dashboard/fragments/activity` | HTMX auto-refresh fragment (every 30s) |
 | `/dashboard/fragments/zb-credits` | HTMX fragment — ZeroBounce credits card (spend page) |
-| `/dashboard/fragments/zb-alert` | HTMX fragment — site-wide low-credit banner (empty if ok) |
+| `/dashboard/fragments/zb-alert` | HTMX fragment — site-wide low-credit banner |
+| `/dashboard/fragments/revalidate-status` | HTMX fragment — revalidation job progress |
 
 All times displayed in US/Eastern timezone via Jinja2 `to_et` filter.
 A `fromjson` filter is also registered for parsing saved search params in templates.
@@ -355,27 +383,19 @@ A `fromjson` filter is also registered for parsing saved search params in templa
 ## Outstanding / To-Do
 
 ### Pending Configuration (Manual)
-- [x] **Negative reply keywords in Smartlead** — set via MCP on both campaigns. Verify in Smartlead UI.
-- [x] **Set `ANTHROPIC_API_KEY`** on Railway web service — done and confirmed working.
-- [x] **Set `APOLLO_API_KEY`** on Railway web service — done.
-- [x] **Updated HubSpot pipeline** — Outbound - Cold Leads (890766156) / New Lead to Contact (1341410439).
-- [x] **Set `HUNTER_API_KEY`** on Railway web service — done.
-- [x] **Upgrade Apollo to paid plan** — done; Lead Finder people search active.
-- [x] **Add `{{custom_fields.personalized_intro}}` to Smartlead email templates** — done.
-- [x] **Fill in tool costs** on `/dashboard/spend` — done.
-- [x] **Smartlead webhooks** — open and click events confirmed firing; High Intent upgrade scan verified.
+- [x] All API keys set on Railway.
+- [x] Smartlead webhooks, High Intent scan, category sync all verified working.
+- [ ] **Google Postmaster Tools** — service account (`GOOGLE_ANALYTICS_CREDENTIALS_JSON`) must be added as Viewer at postmaster.google.com → Settings → Users; Gmail Postmaster Tools API must be enabled in the Google Cloud project; set `GOOGLE_POSTMASTER_DOMAINS` on Railway web service.
+- [ ] **GA4 sessions column** — set `GOOGLE_ANALYTICS_PROPERTY_ID` and `GOOGLE_ANALYTICS_CREDENTIALS_JSON` on Railway web service; email templates must set `utm_campaign=sl{smartlead_campaign_id}`.
 
 ### Future Features
 - [ ] Spam event type mapping — waiting on Smartlead to confirm event name for spam reports
-- [ ] REST API documentation — `/prospects` endpoints protected by `X-API-Key` header
-- [x] Prospect activity endpoint `GET /prospects/{id}/activity` — already implemented in `app/routers/prospects.py`
 - [ ] Upstash Redis upgrade — if request volume grows, upgrade from free tier ($10/month for 100M requests)
-- [ ] **Google Postmaster Tools integration** — pull domain reputation, spam rate, delivery errors, and authentication pass rates into the dashboard. Requires: (1) Google Cloud project with Gmail Postmaster Tools API enabled, (2) Service Account JSON key, (3) grant service account access to domains in Postmaster Tools UI, (4) add `GOOGLE_POSTMASTER_SERVICE_ACCOUNT_JSON` env var on Railway web service. Display as a new section on `/dashboard/spend` or a dedicated `/dashboard/deliverability` page.
 
 ### Future Lead Sources
-- [ ] **#2 — SEC Form ADV (RIA database)** — Every registered investment adviser files Form ADV with SEC. Free public API via IAPD (SEC Investment Adviser Public Disclosure). Shows firm name, AUM, key personnel. Endpoint: `https://efts.sec.gov/LATEST/search-index?forms=ADV`. RIAs are warm intro path to HNWI clients.
-- [ ] **#3 — SEC 13F Filings (institutional investors)** — Institutional managers with >$100M AUM file quarterly 13Fs listing holdings. These are actual investors, not fund managers. Same EDGAR infrastructure already in place (`app/integrations/edgar.py`), different form type.
-- [ ] **#4 — Form 990 / Family Foundations** — Family foundations and endowments file public 990s. ProPublica Nonprofit API (`https://projects.propublica.org/nonprofits/api/v2`) exposes foundation name, assets, trustees. Trustees of a $50M+ foundation are prime UHNWI targets.
+- [ ] **SEC Form ADV (RIA database)** — Endpoint: `https://efts.sec.gov/LATEST/search-index?forms=ADV`. RIAs are warm intro path to HNWI clients.
+- [ ] **SEC 13F Filings (institutional investors)** — Same EDGAR infrastructure (`app/integrations/edgar.py`), different form type.
+- [ ] **Form 990 / Family Foundations** — ProPublica Nonprofit API (`https://projects.propublica.org/nonprofits/api/v2`). Trustees of a $50M+ foundation are prime UHNWI targets.
 
 ---
 
@@ -395,10 +415,11 @@ A `fromjson` filter is also registered for parsing saved search params in templa
 | `smartlead_message_id` unique constraint dropped open/click events | Fixed: composite `(smartlead_message_id, event_type)` constraint |
 | Jinja2 `{{ \'s\' }}` causes TemplateSyntaxError | Use `{{ 's' }}` — no backslash escaping inside `{{ }}` blocks |
 | Celery worker crashing with Upstash 500k limit | Removed result backend; disabled events; slowed HubSpot sync to 15 min |
-| Bulk enroll allowed duplicate active enrollments | Added check: skip if already `active` in target campaign |
+| Bulk enroll allowed duplicate active enrollments | Added check: skip if already `active` in target campaign (deduped against both DB and Smartlead API) |
 | Smartlead `unsubscribe_text` is email footer text, not reply keywords | Set it to "Unsubscribe"; reply keyword detection is a separate Smartlead setting |
-| EDGAR API `_id` field includes filename suffix | Use `adsh` for accession number; `ciks[]`/`display_names[]`/`biz_locations[]` are arrays |
 | Apollo `people/search` returns `API_INACCESSIBLE` | Search requires paid plan + `X-Api-Key` header; free tier only covers `people/match` |
 | Apollo returns 200 OK with JSON `{"error": "..."}` | `raise_for_status()` won't catch it — check `if "error" in data: raise RuntimeError(data["error"])` |
 | Apollo `api_search` ignores `person_seniority_levels` | Use `person_titles` with EXECUTIVE_TITLES constant instead |
 | Multiple Alembic heads block `alembic upgrade head` | Create a merge migration with `down_revision = (head1, head2)` and empty upgrade/downgrade |
+| Bouncer returns `unknown` for large batches | Use `validate_all()` (batches of 20, 1s delay) for any bulk operation |
+| OOO auto-replies were counted as real replies | Detect by text content, set `is_ooo=True`, exclude from all reply counts |
