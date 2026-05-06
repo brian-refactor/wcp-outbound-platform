@@ -1856,6 +1856,98 @@ def dashboard_mailboxes(request: Request, db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
+# Replies inbox
+# ---------------------------------------------------------------------------
+
+@router.get("/replies", response_class=HTMLResponse)
+def dashboard_replies(
+    request: Request,
+    db: Session = Depends(get_db),
+    campaign_id: Optional[str] = None,
+    include_ooo: bool = False,
+):
+    import json as _json
+
+    ooo_filter = "" if include_ooo else "AND ee.is_ooo = false"
+    campaign_filter = "AND se.smartlead_campaign_id = :campaign_id" if campaign_id else ""
+
+    rows = db.execute(text(f"""
+        SELECT
+            ee.id              AS event_id,
+            ee.occurred_at,
+            ee.email_subject,
+            ee.sequence_number,
+            ee.is_ooo,
+            ee.raw_payload,
+            p.id               AS prospect_id,
+            p.first_name,
+            p.last_name,
+            p.email,
+            p.company,
+            p.title,
+            se.campaign_name,
+            se.smartlead_campaign_id,
+            se.smartlead_category
+        FROM email_events ee
+        LEFT JOIN prospects p ON p.id = ee.prospect_id
+        LEFT JOIN sequence_enrollments se ON se.id = ee.enrollment_id
+        WHERE ee.event_type = 'reply'
+          {ooo_filter}
+          {campaign_filter}
+        ORDER BY ee.occurred_at DESC
+        LIMIT 500
+    """), {"campaign_id": campaign_id} if campaign_id else {}).mappings().all()
+
+    # Parse reply text out of raw_payload
+    replies = []
+    for row in rows:
+        reply_text = None
+        if row["raw_payload"]:
+            try:
+                payload = _json.loads(row["raw_payload"])
+                reply_text = (payload.get("reply_message") or {}).get("text") or None
+                if reply_text:
+                    reply_text = reply_text.strip() or None
+            except Exception:
+                pass
+        replies.append({**dict(row), "reply_text": reply_text})
+
+    # Summary stats (always over all real replies, ignoring current filter)
+    stats = db.execute(text("""
+        SELECT
+            COUNT(*) FILTER (WHERE NOT is_ooo)                    AS total_real,
+            COUNT(*) FILTER (WHERE is_ooo)                        AS total_ooo,
+            COUNT(DISTINCT prospect_id) FILTER (WHERE NOT is_ooo) AS unique_prospects
+        FROM email_events
+        WHERE event_type = 'reply'
+    """)).mappings().one()
+
+    # Campaign list for filter dropdown
+    campaigns = db.execute(text("""
+        SELECT DISTINCT
+            se.smartlead_campaign_id,
+            COALESCE(se.campaign_name, se.smartlead_campaign_id) AS campaign_name
+        FROM email_events ee
+        JOIN sequence_enrollments se ON se.id = ee.enrollment_id
+        WHERE ee.event_type = 'reply'
+        ORDER BY campaign_name
+    """)).mappings().all()
+
+    return templates.TemplateResponse(
+        "dashboard/replies.html",
+        {
+            "request": request,
+            "replies": replies,
+            "stats": stats,
+            "campaigns": campaigns,
+            "selected_campaign": campaign_id,
+            "include_ooo": include_ooo,
+            "active_page": "replies",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Deliverability (Google Postmaster Tools)
 # ---------------------------------------------------------------------------
 
